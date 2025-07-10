@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="style.css"/>
 
     <!-- Яндекс.Карты (один тег, один ключ, + suggest_apikey) -->
-    <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=410a6099-56c9-4669-81c8-f21896edfab0&suggest_apikey=410a6099-56c9-4669-81c8-f21896edfab0&load=package.full" defer></script>
+    html<br><script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=410a6099-56c9-4669-81c8-f21896edfab0&suggest_apikey=410a6099-56c9-4669-81c8-f21896edfab0&load=package.full,geocode,package.suggest" defer></script>
 
     <!-- основной скрипт -->
     <script src="script.js" defer></script>
@@ -40,8 +40,7 @@
         <label>Адрес доставки
           <input type="text" id="inpAddr" placeholder="Город, улица, дом" autocomplete="off"/>
         </label>
-        <div id="addr-suggestions" class="addr-container hidden"></div>
-
+   
         <button id="btnCalc">Рассчитать</button>
         <pre id="out"></pre>
         <div id="map"></div>
