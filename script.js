@@ -1,6 +1,6 @@
-/* ------------------------------------------------------------------
-   1. КОНСТАНТЫ (ваши исходные цифры)
------------------------------------------------------------------- */
+/* -----------------------------------------------------------
+   1. КОНСТАНТЫ
+----------------------------------------------------------- */
 const RATE  = { lom:{ base:10450 }, gable:{ base:13750 } };
 const DELIV = { '6x4':180,'6x5':200,'6x6':200,'6x7':200,
                 '6x8':300,'6x9':300,'6x10':300,'8x8':300,'9x8':300 };
@@ -40,9 +40,9 @@ const WINDOWS = {
   '90×205 дверь ПВХ':{2:35000}
 };
 
-/* ------------------------------------------------------------------
-   2. DOM-элементы
------------------------------------------------------------------- */
+/* -----------------------------------------------------------
+   2. ССЫЛКИ НА DOM-ЭЛЕМЕНТЫ
+----------------------------------------------------------- */
 const inpWidth   = document.getElementById('inpWidth');
 const inpLength  = document.getElementById('inpLength');
 const inpAddr    = document.getElementById('inpAddr');
@@ -69,40 +69,50 @@ const btnAddWindow     = document.getElementById('btnAddWindow');
 const windowsContainer = document.getElementById('windowsContainer');
 const tmplWindowRow    = document.getElementById('tmplWindowRow');
 
-/* ------------------------------------------------------------------
-   3. Карта + подсказки  (один ymaps.ready)
------------------------------------------------------------------- */
-let map;                       // будет доступна в getKm
-ymaps.ready(() => {
-  map = new ymaps.Map('map', { center:[55.751244,37.618423], zoom:9 });
-  new ymaps.SuggestView('inpAddr', { results:5 });
+/* -----------------------------------------------------------
+   3. КАРТА + ПОДСКАЗКИ
+----------------------------------------------------------- */
+let map;                       // нужна в getKm
 
+ymaps.ready(() => {
+  // карта
+  map = new ymaps.Map('map', { center:[55.751244,37.618423], zoom:9 });
+
+  // подсказки ► убедитесь, что домен указан в ключе!
+  try {
+    new ymaps.SuggestView('inpAddr', { results:5 });
+  } catch (e){
+    console.warn('SuggestView error:', e.message);
+  }
+
+  // инициализация остального интерфейса
   populatePileOptions();
   btnAddWindow.addEventListener('click', addWindowRow);
   [inpWidth, inpLength].forEach(el =>
     el.addEventListener('change', populatePileOptions));
-
   btnCalc.onclick = calculate;
 });
 
-/* ------------------------------------------------------------------
-   4. Сваи
------------------------------------------------------------------- */
+/* -----------------------------------------------------------
+   4. СВАЙНЫЕ ОПЦИИ
+----------------------------------------------------------- */
 function populatePileOptions(){
   const w = +inpWidth.value, l = +inpLength.value;
-  const key = `${w}x${l}`, cnt = PILE_COUNT[key]||12;
+  const key = `${w}x${l}`, cnt = PILE_COUNT[key] || 12;
   selPile.innerHTML = '<option value="">— без свай —</option>';
-  Object.entries(PILES).forEach(([dim,price])=>{
-    selPile.innerHTML += `<option value="${dim}">${dim} × ${cnt} шт (${price.toLocaleString()} ₽/шт)</option>`;
+  Object.entries(PILES).forEach(([dim, price])=>{
+    selPile.innerHTML +=
+      `<option value="${dim}">${dim} × ${cnt} шт (${price.toLocaleString()} ₽/шт)</option>`;
   });
 }
 
-/* ------------------------------------------------------------------
-   5. Окна / двери ПВХ
------------------------------------------------------------------- */
+/* -----------------------------------------------------------
+   5. ОКНА / ДВЕРИ ПВХ
+----------------------------------------------------------- */
 function addWindowRow(){
   const clone = tmplWindowRow.content.cloneNode(true);
   const row   = clone.querySelector('.window-row');
+
   const selType = row.querySelector('.win-type');
   const selCam  = row.querySelector('.win-cam');
   const selSz   = row.querySelector('.win-size');
@@ -113,10 +123,10 @@ function addWindowRow(){
     const isDoor = selType.value === 'pvhdoor';
     selSz.innerHTML = '<option value="">— размер —</option>';
 
-    Object.entries(WINDOWS).forEach(([size,cams])=>{
-      if(isDoor){
-        if(size.includes('дверь ПВХ')){
-          const p = cams[2]||cams[1];
+    Object.entries(WINDOWS).forEach(([size, cams])=>{
+      if (isDoor){
+        if (size.includes('дверь ПВХ')){
+          const p = cams[2] || cams[1];
           selSz.innerHTML += `<option value="${size}">${size} (${p.toLocaleString()} ₽)</option>`;
         }
       } else if (cams[cam]){
@@ -132,26 +142,25 @@ function addWindowRow(){
   windowsContainer.appendChild(row);
 }
 
-/* ------------------------------------------------------------------
-   6. Главный расчёт
------------------------------------------------------------------- */
+/* -----------------------------------------------------------
+   6. ГЛАВНЫЙ РАСЧЁТ
+----------------------------------------------------------- */
 async function calculate(){
-
-  /* базовые размеры */
+  /* размеры */
   const w = +inpWidth.value, l = +inpLength.value;
-  if (w < 6 || l < 4) { alert('Минимум 6×4 м'); return; }
+  if (w < 6 || l < 4){ alert('Минимум 6×4 м'); return; }
 
-  const area = w * l;
+  const area = w*l;
   const roof = document.querySelector('input[name="roof"]:checked').value;
   const basePrice = Math.ceil(area * RATE[roof].base / 10) * 10;
 
   /* доставка */
   const addr = inpAddr.value.trim();
-  if(!addr){ alert('Введите адрес'); return; }
+  if (!addr){ alert('Введите адрес'); return; }
 
-  const km = await getKm(addr);
+  const km = await getKm(addr);        // <-- маршрут
   if (km === null) return;
-  if (km > 250) { alert('Доставка >250 км'); return; }
+  if (km > 250){ alert('Доставка >250 км'); return; }
 
   const perKm = DELIV[`${w}x${l}`] || 300;
   const del   = Math.max(Math.ceil(perKm * km / 50) * 50, 7000);
@@ -191,8 +200,7 @@ async function calculate(){
   /* сваи */
   if (selPile.value){
     const cnt = PILE_COUNT[`${w}x${l}`] || 12;
-    const price = PILES[selPile.value];
-    add(price * cnt, `Сваи ${selPile.value} × ${cnt} шт`);
+    add(PILES[selPile.value] * cnt, `Сваи ${selPile.value} × ${cnt} шт`);
   }
 
   /* окна/двери ПВХ */
@@ -207,14 +215,13 @@ async function calculate(){
     const price = (type === 'pvhdoor') ? (cams[2] || cams[1]) : cams[cam];
     if (price){
       add(price * qty,
-          `${qty}× ${type==='pvhdoor' ? 'Дверь ПВХ' : 'Окно'} ${sz}` +
-          (type==='window' ? ` ${cam}-камерное` : ``));
+          `${qty}× ${type === 'pvhdoor' ? 'Дверь ПВХ' : 'Окно'} ${sz}` +
+          (type === 'window' ? ` ${cam}-камерное` : ``));
     }
   });
 
   /* итог */
   const total = basePrice + del + extras;
-
   const lines = [
     `🏠 Каркасный дом с ${roof==='lom' ? 'ломаной' : 'двускатной'} крышей ${w}×${l} — под ключ`,
     ``,
@@ -222,16 +229,14 @@ async function calculate(){
     `– Дом по базовой компл.: ${basePrice.toLocaleString()} ₽`,
     `– Доставка: ${del.toLocaleString()} ₽`
   ];
-  if (extras > 0){
-    lines.push(`– Доп. услуги: ${extras.toLocaleString()} ₽`, ...linesExtra);
-  }
+  if (extras > 0) lines.push(`– Доп. услуги: ${extras.toLocaleString()} ₽`, ...linesExtra);
   lines.push(
     `👉 Итого: ${total.toLocaleString()} ₽`, ``,
     `📦 В комплекте:`,
     `– Наружн.: ${roof==='lom' ? 'Вагонка (B–C)' : 'Имитация бруса (B–C)'}`,
     `– Внутри: ОСБ-3`,
     `– Утепление: Мин.вата 100 мм`,
-    `– Кровля: ${roof==='lom' ? 'Профнастил 0.4 мм' : 'Профлист / ондулин'}`,
+    `– Кровля: ${roof==='lom' ? 'Профнастил 0,4 мм' : 'Профлист / ондулин'}`,
     `– 3 окна 80×80 дерево`,
     `– Дверь РФ + перегородка`, ``,
     `🎁 Подарки:`,
@@ -244,19 +249,19 @@ async function calculate(){
   out.textContent = lines.join('\n');
 }
 
-/* ------------------------------------------------------------------
-   7. Геокодер + маршрут
------------------------------------------------------------------- */
+/* -----------------------------------------------------------
+   7. МАРШРУТ И КМ
+----------------------------------------------------------- */
 async function getKm(address){
   try{
     const res = await ymaps.geocode(address, { results:1 });
-    const obj = res.geoObjects.get(0);
-    if (!obj){ alert('Адрес не найден'); return null; }
+    const first = res.geoObjects.get(0);
+    if (!first){ alert('Адрес не найден'); return null; }
 
-    const coords = obj.geometry.getCoordinates();
+    const coords = first.geometry.getCoordinates();
     const route  = await ymaps.route([[55.751244,37.618423], coords]);
 
-    /* показываем маршрут */
+    // рисуем маршрут на карте
     map.geoObjects.removeAll();
     map.geoObjects.add(route);
 
