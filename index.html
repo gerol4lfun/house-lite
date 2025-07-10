@@ -3,14 +3,17 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Калькулятор каркасного дома</title>
 
     <!-- ваш CSS -->
-    <link rel="stylesheet" href="style.css"/>
+    <link rel="stylesheet" href="style.css" />
 
     <!-- правильный, рабочий тег -->
-    <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=410a6099-56c9-4669-81c8-f21896edfab0&suggest_apikey=410a6099-56c9-4669-81c8-f21896edfab0&load=package.full,geocode,package.suggest" defer></script>
+    <script
+      src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=410a6099-56c9-4669-81c8-f21896edfab0&suggest_apikey=410a6099-56c9-4669-81c8-f21896edfab0&load=package.full,geocode,package.suggest"
+      defer
+    ></script>
 
     <!-- основной скрипт -->
     <script src="script.js" defer></script>
@@ -23,24 +26,31 @@
       <!-- ──────────────── Левая панель ──────────────── -->
       <div>
         <label>Ширина, м
-          <input type="number" id="inpWidth" min="6" step="1" value="6"/>
+          <input type="number" id="inpWidth" min="6" step="1" value="6" />
         </label>
 
         <label>Длина, м
-          <input type="number" id="inpLength" min="4" step="1" value="4"/>
+          <input type="number" id="inpLength" min="4" step="1" value="4" />
         </label>
 
         <fieldset>
           <legend>Тип крыши</legend>
-          <label><input name="roof" type="radio" value="lom" checked/> Ломаная</label>
-          <label><input name="roof" type="radio" value="gable"/> Двускатная</label>
+          <label><input name="roof" type="radio" value="lom" checked /> Ломаная</label>
+          <label><input name="roof" type="radio" value="gable" /> Двускатная</label>
         </fieldset>
 
         <!-- поле адреса + скрытый контейнер подсказок -->
         <label>Адрес доставки
-          <input type="text" id="inpAddr" placeholder="Город, улица, дом" autocomplete="off"/>
+          <input
+            type="text"
+            id="inpAddr"
+            placeholder="Город, улица, дом"
+            autocomplete="off"
+          />
         </label>
-   
+        <!-- поле для подсказок -->
+        <div id="addr-suggestions"></div>
+
         <button id="btnCalc">Рассчитать</button>
         <pre id="out"></pre>
         <div id="map"></div>
@@ -102,8 +112,8 @@
           </label>
 
           <div class="checkbox-group">
-            <label><input type="checkbox" id="chkFloor"/> Шпунт-пол (1000 ₽/м²)</label>
-            <label><input type="checkbox" id="chkMouse"/> Сетка «анти-мышь» (400 ₽/м²)</label>
+            <label><input type="checkbox" id="chkFloor" /> Шпунт-пол (1000 ₽/м²)</label>
+            <label><input type="checkbox" id="chkMouse" /> Сетка «анти-мышь» (400 ₽/м²)</label>
           </div>
         </div>
 
@@ -119,7 +129,7 @@
             </select>
           </label>
           <label>Длина, м
-            <input type="number" id="inpPartLen" min="0" step="0.1" value="0"/>
+            <input type="number" id="inpPartLen" min="0" step="0.1" value="0" />
           </label>
         </div>
 
@@ -138,8 +148,8 @@
             </select>
           </label>
 
-          <label style="display:block; margin-top:8px;">
-            <input type="checkbox" id="chkRamp"/> Пандус под самонаборную (2000 ₽)
+          <label style="display: block; margin-top: 8px;">
+            <input type="checkbox" id="chkRamp" /> Пандус под самонаборную (2000 ₽)
           </label>
         </div>
 
@@ -159,8 +169,16 @@
           <div id="windowsContainer"></div>
 
           <template id="tmplWindowRow">
-            <div class="window-row" style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-              <select class="win-type" style="width:120px">
+            <div
+              class="window-row"
+              style="
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                margin-top: 8px;
+              "
+            >
+              <select class="win-type" style="width: 120px">
                 <option value="window">Окно</option>
                 <option value="pvhdoor">Дверь ПВХ</option>
               </select>
@@ -174,7 +192,13 @@
                 <option value="">— размер —</option>
               </select>
 
-              <input type="number" class="win-qty" min="1" value="1" style="width:60px;" />
+              <input
+                type="number"
+                class="win-qty"
+                min="1"
+                value="1"
+                style="width: 60px;"
+              />
               <button type="button" class="btnRemoveWindow">×</button>
             </div>
           </template>
