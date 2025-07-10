@@ -1,0 +1,28 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 0 20px;
+    color: #333;
+  }
+  h1 { text-align: center; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  label, fieldset { display: block; margin: 10px 0; }
+  input[type="number"], input[type="text"], select, button {
+    width: 100%; padding: 6px; box-sizing: border-box; font-size: 14px;
+  }
+  .extras {
+    border: 1px solid #ccc; border-radius: 4px; padding: 10px; margin-bottom: 10px;
+  }
+  .extras h2 { margin-top: 0; font-size: 1.1em; }
+  .checkbox-group { display: flex; gap: 10px; flex-wrap: wrap; }
+  pre {
+    background: #f7f7f7; padding: 12px; border-radius: 6px; white-space: pre-wrap;
+  }
+  #map { width: 100%; height: 200px; margin-top: 10px; }
+  .hidden { display: none; }
+  

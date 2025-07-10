@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Тест Я-карт</title>
+
+<!-- ⬇⬇⬇  ОДНА, ЦЕЛЬНАЯ, БЕЗ ПЕРЕНОСОВ  ⬇⬇⬇ -->
+<script src="https://api-maps.yandex.ru/2.1/?apikey=410a6099-56c9-4669-81c8-f21896edfab0&lang=ru_RU&load=package.full,geocode,package.suggest" type="text/javascript"></script>
+<!-- ⬆⬆⬆-------------------------------------------------⬆⬆⬆ -->
+
+<style>
+body{font:16px/1.4 Arial} #map{width:400px;height:250px;margin:20px 0}
+</style>
+</head>
+<body>
+<input id="addr" placeholder="начни вводить адрес" autocomplete="off">
+<div id="map"></div>
+
+<script>
+ymaps.ready(() => {
+  new ymaps.Map('map',{center:[55.75,37.6],zoom:9});
+  new ymaps.SuggestView('addr',{results:5});
+  console.log('geocode:', typeof ymaps.geocode);       // должен вывести 'function'
+});
+</script>
+</body>
+</html>
