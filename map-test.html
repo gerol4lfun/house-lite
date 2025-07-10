@@ -1,58 +1,53 @@
+<!-- map-test.html  (положите рядом с index.html) -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <title>Y-Maps test (карта + подсказки)</title>
+  <meta charset="UTF-8">
+  <title>Тест Y-Maps + Suggest</title>
 
-  <!-- тот самый рабочий ключ, точно такой же, как в калькуляторе теплиц -->
-  <script src="https://api-maps.yandex.ru/2.1/?apikey=410a6099-56c9-4669-81c8-f21896edfab0&lang=ru_RU" type="text/javascript"></script>
+  <!-- тот самый рабочий ключ -->
+  <script src="https://api-maps.yandex.ru/2.1/?apikey=410a6099-56c9-4669-81c8-f21896edfab0&lang=ru_RU"
+          type="text/javascript"></script>
 
   <style>
     html,body{height:100%;margin:0}
     #map{width:100%;height:100%}
-
-    /* Инпут и выпадающий список поверх карты */
-    #addr{position:absolute;top:10px;left:10px;
-          width:320px;padding:6px 8px;font:14px/18px Arial,sans-serif;
-          border:1px solid #ccc;border-radius:4px;z-index:1000}
-    .ymaps-suggest{z-index:1001 !important} /* чтобы не уходило под карту */
+    /* поле ввода поверх карты */
+    #addr{
+      position:absolute;top:10px;left:10px;
+      width:320px;padding:6px;font:16px/20px sans-serif;
+      z-index:1000;
+    }
+    /* чтобы список подсказок не прятался */
+    .ymaps-suggest{ z-index:1001 !important; }
   </style>
 </head>
 <body>
+
+  <input id="addr" placeholder="Начните вводить адрес…">
   <div id="map"></div>
-  <input id="addr" placeholder="Начните вводить адрес…" autocomplete="off" />
 
   <script>
-    ymaps.ready(async () => {
-      /* 1. Карта */
-      const map = new ymaps.Map('map',
-        {center:[55.751244,37.618423],zoom:9});
+    ymaps.ready(() => {
+      /* карта по центру Москвы */
+      const map = new ymaps.Map('map', {
+        center:[55.751244,37.618423], zoom: 9
+      });
 
-      /* 2. Подсказки */
-      new ymaps.SuggestView('addr',{results:5});
+      /* автодополнение + перенос карты на выбранный объект */
+      const suggest = new ymaps.SuggestView('addr', { results: 5 });
 
-      /* 3. Нажали Enter → геокодируем и ставим метку */
-      document.getElementById('addr')
-        .addEventListener('keydown', async e => {
-          if(e.key!=='Enter') return;
-          const query = e.target.value.trim();
-          if(!query)     return;
+      suggest.events.add('select', async e => {
+        const val = e.get('item').value;
+        const res = await ymaps.geocode(val);
+        const first = res.geoObjects.get(0);
+        if (!first) return;
 
-          try{
-            const g = await ymaps.geocode(query,{results:1});
-            const first = g.geoObjects.get(0);
-            if(!first)    return alert('Адрес не найден');
-
-            const coords = first.geometry.getCoordinates();
-            map.geoObjects.removeAll();
-            map.geoObjects.add(new ymaps.Placemark(coords,
-              {balloonContent:query}));
-            map.setCenter(coords,14,{duration:300});
-          }catch(err){
-            console.error(err);
-            alert('Ошибка геокодера');
-          }
-        });
+        const coords = first.geometry.getCoordinates();
+        map.setCenter(coords, 10);
+        map.geoObjects.removeAll();
+        map.geoObjects.add( new ymaps.Placemark(coords, { balloonContent: val }) );
+      });
     });
   </script>
 </body>
