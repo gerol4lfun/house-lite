@@ -1,3 +1,4 @@
+```javascript
 /* ------------------------------------------------------------------
    1. КОНСТАНТЫ (копия ваших цифр, ничего не менял)
 ------------------------------------------------------------------ */
@@ -77,8 +78,8 @@ ymaps.ready(() => {
   // карта
   map = new ymaps.Map('map', { center:[55.751244,37.618423], zoom:9 });
 
-  // подсказки
-  new ymaps.SuggestView('inpAddr', { results:5 });
+  // подсказки (SuggestView заменён на собственную реализацию)
+  // new ymaps.SuggestView('inpAddr', { results:5 });
 
   // стартовые данные свай и кнопка добавления окон
   populatePileOptions();
@@ -88,6 +89,45 @@ ymaps.ready(() => {
 
   // кнопка «Рассчитать»
   btnCalc.onclick = calculate;
+
+  /* ------------------------------------------------------------------
+     Подсказки «как в теплицах»
+  ------------------------------------------------------------------ */
+  const boxSuggest = document.getElementById('addr-suggestions');
+
+  /* показываем подсказки при вводе */
+  inpAddr.addEventListener('input', () => {
+    const q = inpAddr.value.trim();
+    if (q.length < 2) {
+      boxSuggest.style.display = 'none';
+      return;
+    }
+    ymaps.geocode(q, { results: 5 })
+      .then(res => {
+        boxSuggest.innerHTML = '';
+        res.geoObjects.each(obj => {
+          const line = obj.getAddressLine();
+          const div  = document.createElement('div');
+          div.textContent = line;
+          div.onclick = () => {
+            inpAddr.value = line;
+            boxSuggest.style.display = 'none';
+            calculate();              // сразу считаем доставку
+          };
+          boxSuggest.appendChild(div);
+        });
+        boxSuggest.style.display =
+          res.geoObjects.getLength() ? 'block' : 'none';
+      })
+      .catch(() => boxSuggest.style.display = 'none');
+  });
+
+  /* кликом вне поля скрываем список */
+  document.addEventListener('click', e => {
+    if (!inpAddr.parentElement.contains(e.target)) {
+      boxSuggest.style.display = 'none';
+    }
+  });
 });
 
 /* ------------------------------------------------------------------
@@ -273,3 +313,4 @@ async function getKm(address){
     return null;
   }
 }
+```
