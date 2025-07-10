@@ -2,19 +2,28 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Проверка ключа Я-Карт</title>
+  <title>Проверка ключа Я-Карт +&nbsp;Suggest</title>
 
-  <!-- Яндекс.Карты: карта + геокодер + подсказки -->
+  <!-- один и тот же ключ передаём дважды: apikey + suggest_apikey -->
   <script src="https://api-maps.yandex.ru/2.1/?apikey=410a6099-56c9-4669-81c8-f21896edfab0&suggest_apikey=410a6099-56c9-4669-81c8-f21896edfab0&lang=ru_RU&load=package.full,package.suggest" type="text/javascript"></script>
 
   <style>
     html,body{height:100%;margin:0}
     #map{width:100%;height:100%}
+
+    /* поле ввода */
     #addrInput{
       position:absolute;top:10px;left:10px;
-      width:300px;padding:6px;font:14px/18px Arial, sans-serif;
-      border:1px solid #ccc;border-radius:4px;box-shadow:0 0 4px rgba(0,0,0,.15);
+      width:300px;padding:6px;
+      font:14px/18px Arial, sans-serif;
+      border:1px solid #ccc;border-radius:4px;
       z-index:1000;
+    }
+
+    /* выпадающий список подсказок */
+    .ymaps-suggest{
+      z-index:1001 !important;      /* выше слоя карты  */
+      font:14px/18px Arial, sans-serif;
     }
   </style>
 </head>
@@ -23,37 +32,38 @@
 
   <script>
     ymaps.ready(() => {
-      /* 1. Карта – центр Москвы */
+      /* 1. Карта */
       const map = new ymaps.Map('map', {
         center:[55.751244,37.618423],
-        zoom:9
+        zoom: 9
       });
 
-      /* 2. Поле ввода адреса */
+      /* 2. Инпут + SuggestView */
       const inp = document.createElement('input');
       inp.id = 'addrInput';
       inp.placeholder = 'Начните вводить адрес…';
       document.body.appendChild(inp);
 
-      /* 3. Подсказки */
       new ymaps.SuggestView(inp, { results:5 });
 
-      /* 4. По клику Enter – геокодируем и летим к точке */
+      /* 3. Enter = геокод + метка */
       inp.addEventListener('keydown', async e => {
         if(e.key !== 'Enter') return;
-        const val = inp.value.trim();
-        if(!val) return;
+        const query = inp.value.trim();
+        if(!query) return;
+
         try{
-          const res = await ymaps.geocode(val, { results:1 });
-          const obj = res.geoObjects.get(0);
-          if(!obj) return alert('Адрес не найден');
-          const coords = obj.geometry.getCoordinates();
-          map.setCenter(coords, 14, { duration:300 });
+          const res   = await ymaps.geocode(query, { results:1 });
+          const first = res.geoObjects.get(0);
+          if(!first)  return alert('Адрес не найден');
+
+          const coords = first.geometry.getCoordinates();
           map.geoObjects.removeAll();
-          map.geoObjects.add(new ymaps.Placemark(coords, { balloonContent:val }));
+          map.geoObjects.add(new ymaps.Placemark(coords, { balloonContent: query }));
+          map.setCenter(coords, 14, { duration:300 });
         }catch(err){
           console.error(err);
-          alert('Ошибка при геокодировании');
+          alert('Ошибка геокодера');
         }
       });
     });
