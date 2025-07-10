@@ -1,54 +1,56 @@
-<!-- map-test.html  (положите рядом с index.html) -->
+<!-- map-test-fixed.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Тест Y-Maps + Suggest</title>
+  <title>Проверка: карта + геокодер + подсказки</title>
 
-  <!-- тот самый рабочий ключ -->
-  <script src="https://api-maps.yandex.ru/2.1/?apikey=410a6099-56c9-4669-81c8-f21896edfab0&lang=ru_RU"
-          type="text/javascript"></script>
+  <!-- один-единственный тег script с правильными параметрами -->
+  <script
+    src="https://api-maps.yandex.ru/2.1/?lang=ru_RU
+           &apikey=410a6099-56c9-4669-81c8-f21896edfab0
+           &suggest_apikey=410a6099-56c9-4669-81c8-f21896edfab0
+           &load=package.full"
+    type="text/javascript"></script>
 
   <style>
     html,body{height:100%;margin:0}
-    #map{width:100%;height:100%}
-    /* поле ввода поверх карты */
-    #addr{
-      position:absolute;top:10px;left:10px;
-      width:320px;padding:6px;font:16px/20px sans-serif;
-      z-index:1000;
-    }
-    /* чтобы список подсказок не прятался */
-    .ymaps-suggest{ z-index:1001 !important; }
+    #map{height:100%}
+    #addr{position:absolute;top:10px;left:10px;width:320px;
+          padding:6px;font:16px/20px sans-serif;z-index:1000}
+    .ymaps-suggest{z-index:1001!important}
   </style>
 </head>
 <body>
 
-  <input id="addr" placeholder="Начните вводить адрес…">
-  <div id="map"></div>
+<input id="addr" placeholder="Начните вводить адрес…">
+<div id="map"></div>
 
-  <script>
-    ymaps.ready(() => {
-      /* карта по центру Москвы */
-      const map = new ymaps.Map('map', {
-        center:[55.751244,37.618423], zoom: 9
-      });
+<script>
+ymaps.ready(() => {
+  const map = new ymaps.Map('map', {
+    center:[55.751244,37.618423], zoom:9
+  });
 
-      /* автодополнение + перенос карты на выбранный объект */
-      const suggest = new ymaps.SuggestView('addr', { results: 5 });
+  // подключаем подсказки
+  const suggest = new ymaps.SuggestView('addr', {results:5});
 
-      suggest.events.add('select', async e => {
-        const val = e.get('item').value;
-        const res = await ymaps.geocode(val);
-        const first = res.geoObjects.get(0);
-        if (!first) return;
+  suggest.events.add('select', async e => {
+    const val   = e.get('item').value;
+    const res   = await ymaps.geocode(val);
+    const first = res.geoObjects.get(0);
+    if (!first) return;
 
-        const coords = first.geometry.getCoordinates();
-        map.setCenter(coords, 10);
-        map.geoObjects.removeAll();
-        map.geoObjects.add( new ymaps.Placemark(coords, { balloonContent: val }) );
-      });
-    });
-  </script>
+    const coords = first.geometry.getCoordinates();
+    map.geoObjects.removeAll();
+    map.geoObjects.add(new ymaps.Placemark(coords,{balloonContent:val}));
+    map.setCenter(coords, 12);
+
+    // строим автомобильный маршрут от МКАД до точки
+    const route = await ymaps.route([[55.751244,37.618423], coords]);
+    map.geoObjects.add(route);
+  });
+});
+</script>
 </body>
 </html>
