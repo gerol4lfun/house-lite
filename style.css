@@ -1,82 +1,78 @@
 /* ─── базовая типографика + сетка ─────────────────────────────── */
-body{
+body {
   font-family: Arial, sans-serif;
-  max-width: 960px;                 /* шире, чтобы обе колонки влезали */
-  margin:40px auto;
-  padding:0 20px;
-  color:#333;
+  max-width: 960px;
+  margin: 40px auto;
+  padding: 0 20px;
+  color: #333;
 }
-h1{ text-align:center; margin-bottom:24px }
+h1 { text-align: center; margin-bottom: 24px; }
 
-.grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:24px;
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
 }
 
 /* ─── формы ───────────────────────────────────────────────────── */
-label, fieldset{ display:block; margin:12px 0 }
+label, fieldset { display: block; margin: 12px 0; }
 input[type="number"],
 input[type="text"],
-select, button{
-  width:100%;
-  padding:6px 8px;
-  box-sizing:border-box;
-  font-size:14px;
+select, button {
+  width: 100%;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  font-size: 14px;
 }
 
-fieldset{ border:1px solid #ccc; padding:8px; border-radius:4px }
-fieldset legend{ padding:0 6px; font-weight:bold }
+fieldset { border: 1px solid #ccc; padding: 8px; border-radius: 4px; }
+fieldset legend { padding: 0 6px; font-weight: bold; }
 
-button{
-  cursor:pointer;
-  background:#0066cc;
-  color:#fff;
-  border:none;
-  border-radius:4px;
-  padding:8px;
-  transition:background .2s;
+button {
+  cursor: pointer;
+  background: #0066cc;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px;
+  transition: background .2s;
 }
-button:hover{ background:#004a99 }
+button:hover { background: #004a99; }
 
 /* ─── правые блоки “extras” ───────────────────────────────────── */
-.extras{
-  border:1px solid #ccc;
-  border-radius:4px;
-  padding:12px;
-  margin-bottom:16px;
-  background:#fafafa;
+.extras {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: #fafafa;
 }
-.extras h2{ margin:0 0 8px; font-size:1.05em }
-.checkbox-group{ display:flex; gap:10px; flex-wrap:wrap }
+.extras h2 { margin: 0 0 8px; font-size: 1.05em; }
+/* уменьшили gap вдвое */
+.checkbox-group { display: flex; gap: 5px; flex-wrap: wrap; }
 
 /* ─── окно вывода итоговой сметы ──────────────────────────────── */
-pre{
-  background:#f7f7f7;
-  padding:14px;
-  border-radius:6px;
-  white-space:pre-wrap;
+pre {
+  background: #f7f7f7;
+  padding: 14px;
+  border-radius: 6px;
+  white-space: pre-wrap;
 }
 
 /* ─── карта ───────────────────────────────────────────────────── */
-#map{ width:100%; height:240px; margin-top:12px }
-
+#map { width: 100%; height: 240px; margin-top: 12px; }
 
 /* ─── строки “окно / дверь ПВХ” ───────────────────────────────── */
 .window-row select,
-.window-row input{
-  min-height:30px;
+.window-row input { min-height: 30px; }
+.window-row button {
+  background: #d33;
+  padding: 4px 8px;
 }
-.window-row button{
-  background:#d33;
-  padding:4px 8px;
-}
-.window-row button:hover{
-  background:#a00;
-}
+.window-row button:hover { background: #a00; }
 
 /* ─── mobile (≤ 768 px) ───────────────────────────────────────── */
-@media(max-width:768px){
-  .grid{ grid-template-columns:1fr }        /* одна колонка */
-  #map{ height:200px }
+@media(max-width: 768px) {
+  .grid { grid-template-columns: 1fr; }
+  #map { height: 200px; }
 }
