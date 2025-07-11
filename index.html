@@ -1,43 +1,64 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Калькулятор каркасного дома</title>
+  <title>Калькулятор каркасных строений</title>
 
   <!-- ваш CSS -->
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Яндекс.Карты: один тег, одна строка -->
-  <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=410a6099-56c9-4669-81c8-f21896edfab0&suggest_apikey=410a6099-56c9-4669-81c8-f21896edfab0&load=package.full" defer></script>
+  <!-- Яндекс.Карты -->
+  <script
+    src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=410a6099-56c9-4669-81c8-f21896edfab0&suggest_apikey=410a6099-56c9-4669-81c8-f21896edfab0&load=package.full"
+    defer
+  ></script>
 
   <!-- основной скрипт -->
   <script src="script.js" defer></script>
 </head>
 
 <body>
-  <h1>Калькулятор каркасного дома</h1>
+  <h1>Калькулятор каркасных строений</h1>
 
   <div class="grid">
-    <!-- ───────────────── левая панель ───────────────── -->
+    <!-- левая панель -->
     <div>
+      <!-- выбор типа строения -->
+      <label>Тип строения
+        <select id="selType">
+          <option value="hoblok">Хозблок</option>
+          <option value="bytovka">Бытовка</option>
+          <option value="house" selected>Каркасный дом</option>
+        </select>
+      </label>
+
+      <!-- размеры (будут заполняться скриптом) -->
       <label>Ширина, м
-        <input type="number" id="inpWidth" min="6" step="1" value="6" />
+        <select id="inpWidth"></select>
       </label>
 
       <label>Длина, м
-        <input type="number" id="inpLength" min="4" step="1" value="4" />
+        <select id="inpLength"></select>
       </label>
 
-      <fieldset>
-        <legend>Тип крыши</legend>
-        <label><input name="roof" type="radio" value="lom" checked /> Ломаная</label>
-        <label><input name="roof" type="radio" value="gable" /> Двускатная</label>
-      </fieldset>
+      <!-- контейнер для типа крыши -->
+      <div id="roofContainer">
+        <fieldset>
+          <legend>Тип крыши</legend>
+          <label><input name="roof" type="radio" value="lom" checked /> Ломаная</label>
+          <label><input name="roof" type="radio" value="gable" /> Двускатная</label>
+        </fieldset>
+      </div>      
 
+      <!-- адрес доставки -->
       <label>Адрес доставки
-        <input type="text" id="inpAddr" placeholder="Город, улица, дом" autocomplete="off" />
+        <input
+          type="text"
+          id="inpAddr"
+          placeholder="Город, улица, дом"
+          autocomplete="off"
+        />
       </label>
 
       <button id="btnCalc">Рассчитать</button>
@@ -45,7 +66,7 @@
       <div id="map"></div>
     </div>
 
-    <!-- ───────────────── правая панель ───────────────── -->
+    <!-- правая панель -->
     <div>
       <!-- 1. доп. опции (по площади) -->
       <div class="extras">
@@ -63,20 +84,52 @@
 
         <label>Кровля
           <select id="selRoofMat">
-            <option value="none">— без изменений —</option>
+            <option value="galv" selected>Профнастил оцинкованный</option>
+            <option value="ondulin">Ондулин</option>
             <option value="profColor">Цветной профлист (750 ₽/м²)</option>
             <option value="tile_lom">Металлочерепица (ломаная) (800 ₽/м²)</option>
             <option value="tile_gable">Металлочерепица (двускатная) (1200 ₽/м²)</option>
           </select>
         </label>
 
-        <label>Веранда
-          <select id="selVeranda">
-            <option value="none">— без —</option>
-            <option value="verRoof">Отд. крыша (7500 ₽/м²)</option>
-            <option value="verGable">Двускатная (9000 ₽/м²)</option>
-          </select>
-        </label>
+        <!-- Верaнда: теперь по размерам -->
+        <fieldset class="extras--veranda">
+          <legend>Веранда (по размерам)</legend>
+          <label>Ширина, м
+            <input
+              type="number"
+              id="verWidth"
+              min="0"
+              step="0.25"
+              placeholder="например, 3"
+            />
+          </label>
+          <label>Глубина, м
+            <input
+              type="number"
+              id="verDepth"
+              min="0"
+              step="0.25"
+              placeholder="например, 1.5"
+            />
+          </label>
+          <fieldset>
+            <legend>Тип крыши веранды</legend>
+            <label>
+              <input
+                type="radio"
+                name="verRoofType"
+                value="verRoof"
+                checked
+              />
+              Односкатная (7500 ₽/м²)
+            </label>
+            <label>
+              <input type="radio" name="verRoofType" value="verGable" />
+              Двускатная (9000 ₽/м²)
+            </label>
+          </fieldset>
+        </fieldset>
 
         <label>Внутренняя отделка
           <select id="selInRep">
@@ -94,9 +147,9 @@
           <select id="selOutRep">
             <option value="none">— без изменений —</option>
             <option value="vag_ext">Вагонка B–C (500 ₽/м²)</option>
-            <option value="imitBC_ext">Имитация бруса B–C (800 ₽/м²)</option>
-            <option value="block_ext">Блок-хаус (1200 ₽/м²)</option>
-            <option value="osb_extA">ОСБ→вагонка A (500 ₽/м²)</option>
+            <option value="imitBC_ext">Имитация бруса B–C (250 ₽/м²)</option>
+            <option value="block_ext">Блок-хаус (1000 ₽/м²)</option>
+            <option value="osb_extA">Вагонка A (500 ₽/м²)</option>
           </select>
         </label>
 
@@ -125,7 +178,6 @@
       <!-- 3. двери и пандус -->
       <div class="extras">
         <h2>Двери и пандус</h2>
-
         <label>Выберите двери:
           <select id="selDoors">
             <option value="none">— нет —</option>
@@ -136,8 +188,7 @@
             <option value="doorLux">«Термо-люкс» (35000 ₽)</option>
           </select>
         </label>
-
-        <label style="display:block;margin-top:8px;">
+        <label style="display:block; margin-top:8px;">
           <input type="checkbox" id="chkRamp" /> Пандус под самонаборную (2000 ₽)
         </label>
       </div>
@@ -153,27 +204,31 @@
       <!-- 5. окна / двери ПВХ -->
       <div class="extras">
         <h2>Окна ПВХ / Двери ПВХ</h2>
-
         <button type="button" id="btnAddWindow">Добавить окно / дверь</button>
         <div id="windowsContainer"></div>
-
         <template id="tmplWindowRow">
-          <div class="window-row" style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+          <div
+            class="window-row"
+            style="display:flex; gap:8px; align-items:center; margin-top:8px;"
+          >
             <select class="win-type" style="width:120px">
               <option value="window">Окно</option>
               <option value="pvhdoor">Дверь ПВХ</option>
             </select>
-
             <select class="win-cam">
               <option value="1">1-кам.</option>
               <option value="2">2-кам.</option>
             </select>
-
             <select class="win-size">
               <option value="">— размер —</option>
             </select>
-
-            <input type="number" class="win-qty" min="1" value="1" style="width:60px;" />
+            <input
+              type="number"
+              class="win-qty"
+              min="1"
+              value="1"
+              style="width:60px;"
+            />
             <button type="button" class="btnRemoveWindow">×</button>
           </div>
         </template>
