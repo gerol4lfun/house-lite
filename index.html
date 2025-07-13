@@ -18,7 +18,9 @@
   <script src="script.js" defer></script>
 </head>
 
-<!-- Авторизация -->
+
+<body>
+  <!-- Авторизация -->
 <div id="auth-container" class="auth-container">
   <h2>Вход</h2>
   <input type="text"     id="login"    placeholder="Логин">
@@ -27,8 +29,6 @@
   <p id="auth-error">Неверный логин или пароль!</p>
 </div>
 
-
-<body>
   <!-- Калькулятор (скрыт пока не войдём) -->
 <div id="calc-container" class="hidden">
   <!-- Кнопка выхода -->
@@ -79,10 +79,12 @@
     <div id="suggestions"></div>
 </div>
 
- <!-- НОВАЯ КНОПКА -->
- <button type="button" id="btnClearAddr" style="margin-top:6px;">
-  Сбросить доставку
+<button id="btnClearAddr"
+class="btn-danger reset-delivery-button"
+type="button">
+Сбросить доставку
 </button>
+
 
 
       <div id="map"></div>
@@ -261,19 +263,24 @@
         </template>
       </div>
     </div>
-    <!-- здесь вставляем новый блок -->
-    <div id="panelKP">
+        <!-- здесь вставляем новый блок -->
+        <div id="panelKP">
 
-      <div class="kp-box">
-        <pre id="out"></pre>
+          <div class="kp-box">
+            <pre id="out"></pre>
     
-        <!-- кнопка теперь ВНУТРИ kp-box -->
-        <button id="btnCopy" class="btn-neutral">Копировать КП</button>
-      </div>
+            <!-- кнопка теперь ВНУТРИ kp-box -->
+            <button id="btnCopy" class="btn-neutral">Копировать КП</button>
+          </div>
     
-      <button id="btnCalc"  class="btn-primary">Рассчитать</button>
-      <button id="btnReset" class="btn-danger">Сбросить фильтры</button>
-    </div>
-  </div>
-</body>
-</html>
+          <button id="btnCalc"  class="btn-primary">Рассчитать</button>
+          <button id="btnReset" class="btn-danger">Сбросить фильтры</button>
+        </div> <!-- /panelKP -->
+    
+      </div>   <!-- /grid -->
+    </div>     <!-- /container -->
+    </div>     <!-- /calc-container -->
+    
+    </body>
+    </html>
+    
