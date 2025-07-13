@@ -674,131 +674,120 @@ async function calculate(){
   }
 
   /* ===== 8.5. Итоговые строки КП ===== */
-  const total = basePrice + del + extras;
-  const roofType = document.querySelector('input[name="roof"]:checked').value;
-  const title = (type === "house")
-    ? `Каркасный дом с ${roofType==="lom"?"ломаной":"двускатной"} крышей ${w}×${l} — под ключ`
-    : `${selType.options[selType.selectedIndex].text} ${w}×${l} — под ключ`;
+const total    = basePrice + del + extras;
+const roofType = document.querySelector('input[name="roof"]:checked').value;
+const title    = (type === "house")
+  ? `Каркасный дом с ${roofType === "lom" ? "ломаной" : "двускатной"} крышей ${w}×${l} — под ключ`
+  : `${selType.options[selType.selectedIndex].text} ${w}×${l} — под ключ`;
 
-  const lines = [
-    `🏠 **${title}**`,
-    ``,
-    `💰 **Стоимость:**`,
-    `– Базовая: ${formatPrice(basePrice)} ₽  `,
-    `– Доставка: ${formatPrice(del)} ₽  `
-  ];
-  if (extras > 0) {
-    lines.push(`– Дополнительно: ${formatPrice(extras)} ₽  `);
-    lines.push(...linesExtra.map(l=>` ${l}`));
-  }
-  lines.push(
-    ``,
-    `👉 **Итого: ${formatPrice(total)} ₽**`,
-    ``,
-    `🏗️ **Комплектация:**`
-  );
+/* ─── Заголовок + блок «Комплектация» ───────────────────────────── */
+const lines = [
+  `🏠 *${title}*`,
+  ``,
+  `🏗️ *Комплектация:*`
+];
 
-  /* ===== 8.6. Комплектация (финальное состояние) ===== */
-  const pkg = [];
+/* ===== 8.6. Комплектация (финальное состояние) ===== */
+const pkg = [];
 
-  // 1) Наружная отделка
-  pkg.push(`– Наружная отделка: ${MATERIAL_NAME[finalExt]}`);
+// 1) Наружная отделка
+pkg.push(`– Наружная отделка: ${MATERIAL_NAME[finalExt]}`);
 
-  // 2) Внутренняя отделка
-  if (type !== "hoblok") {
-    pkg.push(`– Внутренняя отделка: ${MATERIAL_NAME[finalInt]}`);
-  }
+// 2) Внутренняя отделка
+if (type !== "hoblok") {
+  pkg.push(`– Внутренняя отделка: ${MATERIAL_NAME[finalInt]}`);
+}
 
-  // 3) Утепление
-  pkg.push(`– Утепление: ${getLabel(selInsul.selectedOptions[0]) || "Мин. вата 100 мм + ВВИ"}`);
+// 3) Утепление
+pkg.push(`– Утепление: ${getLabel(selInsul.selectedOptions[0]) || "Мин. вата 100 мм + ВВИ"}`);
 
-  // 4) Кровля
-  pkg.push(`– Кровля: ${getLabel(selRoofMat.selectedOptions[0])}`);
+// 4) Кровля
+pkg.push(`– Кровля: ${getLabel(selRoofMat.selectedOptions[0])}`);
 
-  // 5) Окна (деревянные по умолчанию) и двери базовые
+// 5) Окна (деревянные по умолчанию) и двери базовые
 let hasPVCwindow = false;
-
 windowsContainer.querySelectorAll(".window-row").forEach(row => {
   const size = row.querySelector(".win-size").value;
-  if (size && row.querySelector(".win-type").value === "window") {
-    hasPVCwindow = true;
-  }
+  if (size && row.querySelector(".win-type").value === "window") hasPVCwindow = true;
+});
+if (!hasPVCwindow) {
+  if (type === "house") pkg.push("– Окна: 3 × деревянные 80×80 см");
+  else pkg.push("– Окно: деревянное 60×90 см (1 шт)");
+}
+if (type === "house") pkg.push("– Двери РФ: самонаборные, 1 комплект");
+else pkg.push("– Дверь: самонаборная 200×70–90 см");
+
+// 6) Перегородка по центру (база для дома)
+if (type === "house") pkg.push("– Перегородка: по центру дома, входит в базу");
+
+// 7) Доп-элементы пользователя
+if (vw > 0 && vd > 0)               pkg.push(`– Веранда: ${vw}×${vd} м`);
+if (chkFloor.checked)               pkg.push("– Шпунт-пол");
+if (chkMouse.checked)               pkg.push("– Сетка «анти-мышь»");
+if (partType !== "none" && partLen)
+  pkg.push(`– ${PART_TITLE[partType]} (${partLen} м)`);
+if (selDoors.value !== "none")      pkg.push(`– ${getLabel(selDoors.selectedOptions[0])}`);
+if (chkRamp.checked)                pkg.push("– Пандус под самонаборную дверь");
+if (selPile.value)
+  pkg.push(`– Свайный фундамент: ${selPile.value} × ${(PILE_COUNT[`${w}x${l}`] || 12)} шт`);
+windowsContainer.querySelectorAll(".window-row").forEach(row => {
+  const typeWin = row.querySelector(".win-type").value;
+  const size    = row.querySelector(".win-size").value;
+  const qty     = parseInt(row.querySelector(".win-qty").value) || 1;
+  if (size) pkg.push(`– ${typeWin === "pvhdoor" ? "Дверь ПВХ" : "Окно ПВХ"} ${size} (${qty} шт)`);
 });
 
-// если ПВХ-окон нет — выводим базовые деревянные
-if (!hasPVCwindow) {
-  if (type === "house") {
-    pkg.push("– Окна: 3 × деревянные 80×80 см");
-  } else {
-    pkg.push("– Окно: деревянное 60×90 см (1 шт)");
-  }
-}
-
-// двери базовые (самонаборные) остаются без условий
+// 8) Высота помещения
 if (type === "house") {
-  pkg.push("– Двери РФ: самонаборные, 1 комплект");
+  pkg.push(roofType === "lom"
+    ? "– Высота помещения: от 2,1 м до 2,4 м"
+    : "– Высота помещения: 2,4 м по всему периметру");
 } else {
-  pkg.push("– Дверь: самонаборная 200×70–90 см");
+  pkg.push(`– Высота потолка: ${type === "bytovka" ? "2,00" : "2,10"} м`);
 }
 
+// — добавляем все пункты в основной массив —
+pkg.forEach(l => lines.push(l + "  "));
 
+/* ─── Блок «Стоимость» ──────────────────────────────────────────── */
+lines.push(
+  ``,
+  `💰 *Стоимость:*`,
+  `– Базовая: ${formatPrice(basePrice)} ₽  `,
+  `– Доставка: ${formatPrice(del)} ₽  `
+);
+if (extras > 0) {
+  lines.push(`– Дополнительно: ${formatPrice(extras)} ₽  `);
+  lines.push(...linesExtra.map(l => ` ${l}`));
+}
+lines.push(
+  ``,
+  `👉 *Итого: ${formatPrice(total)} ₽*`
+);
 
-  // 6) Перегородка по центру (база для дома)
-  if (type==="house") pkg.push("– Перегородка: по центру дома, входит в базу");
+/* ─── «Подарки», сроки ─────────────────────────────────────────── */
+const now = new Date();
+const ex  = new Date(now);
+ex.setDate(now.getDate() + 5);
+const DD   = String(ex.getDate()).padStart(2, "0");
+const MM   = String(ex.getMonth() + 1).padStart(2, "0");
+const YYYY = ex.getFullYear();
 
-  // 7) Доп-элементы, указанные пользователем
-  //    (здесь выводим только факт, без цен и стрелок)
-  if (vw>0 && vd>0) pkg.push(`– Веранда: ${vw}×${vd} м`);
-  if (chkFloor.checked) pkg.push("– Шпунт-пол");
-  if (chkMouse.checked) pkg.push("– Сетка «анти-мышь»");
-  if (partType!=="none" && partLen>0) pkg.push(`– ${PART_TITLE[partType]} (${partLen} м)`);
-  if (selDoors.value!=="none") pkg.push(`– ${getLabel(selDoors.selectedOptions[0])}`);
-  if (chkRamp.checked) pkg.push("– Пандус под самонаборную дверь");
-  if (selPile.value) pkg.push(`– Свайный фундамент: ${selPile.value} × ${(PILE_COUNT[`${w}x${l}`]||12)} шт`);
-  // окна ПВХ
-  windowsContainer.querySelectorAll(".window-row").forEach(row=>{
-    const typeWin = row.querySelector(".win-type").value;
-    const size    = row.querySelector(".win-size").value;
-    const qty     = parseInt(row.querySelector(".win-qty").value) || 1;
-    if(size) pkg.push(`– ${typeWin==="pvhdoor"?"Дверь ПВХ":"Окно ПВХ"} ${size} (${qty} шт)`);
-  });
+lines.push(
+  ``,
+  `🎁 *Подарки:*`,
+  `– Фундамент из блоков  `,
+  `– Сборка за 1 день  `,
+  `– Обработка антисептиком  `,
+  ``,
+  `🕒 *Срок изготовления:* 3–7 дней  `,
+  `💳 *Без предоплаты — оплата по факту*`,
+  ``,
+  `⏳ *Предложение действительно до ${DD}.${MM}.${YYYY}*`
+);
 
-  // высота помещения
-  if (type==="house") {
-    pkg.push(
-      roofType==="lom"
-        ? "– Высота помещения: от 2,1 м до 2,4 м"
-        : "– Высота помещения: 2,4 м по всему периметру"
-    );
-  } else {
-    pkg.push(`– Высота потолка: ${type==="bytovka"?"2,00":"2,10"} м`);
-  }
+out.innerHTML = lines.join("\n");
 
-  // вставляем в lines
-  pkg.forEach(l=>lines.push(l+"  "));
-
-  /* ===== 8.7. «Подарки», сроки ===== */
-  const now = new Date();
-  const ex  = new Date(now);
-  ex.setDate(now.getDate() + 5);
-  const DD   = String(ex.getDate()).padStart(2, "0");
-  const MM   = String(ex.getMonth() + 1).padStart(2, "0");
-  const YYYY = ex.getFullYear();
-
-  lines.push(
-    ``,
-    `🎁 **Подарки:**`,
-    `– Фундамент из блоков  `,
-    `– Сборка за 1 день  `,
-    `– Обработка антисептиком  `,
-    ``,
-    `🕒 **Срок изготовления:** 3–7 дней  `,
-    `💳 **Без предоплаты — оплата по факту**`,
-    ``,
-    `⏳ *Предложение действительно до ${DD}.${MM}.${YYYY}*`
-  );
-
-  out.innerHTML = lines.join("\n");
 }
 
 /* ------------------------------------------------------------------
