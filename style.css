@@ -167,28 +167,26 @@ select {
 .auth-container h2{margin-bottom:20px;font-size:20px}
 .auth-container p{color:red;display:none;margin:10px 0}
 .hidden{display:none}
-/* компактная кнопка «Выйти» справа-сверху */
+/* компактная кнопка logout */
 .logout{
-  position:absolute;
+  position:absolute;   /* «прилипает» к углу контейнера-калькулятора */
   top:6px;
   right:8px;
 
+  display:inline-block; /* перебивает display:block из общего правила */
+  width:auto;           /* перебивает width:100% */
   padding:4px 10px;
-  font-size:14px;
 
-  background:#6c757d;      /* серый фон */
+  font-size:14px;
+  background:#6c757d;
   color:#fff;
   border:none;
   border-radius:4px;
   cursor:pointer;
-
-  width:auto;              /* убираем растяжение */
-  line-height:normal;      /* чтобы текст не разъезжался вертикально */
+  line-height:normal;
 }
+.logout:hover{ background:#5a6268; }
 
-.logout:hover{
-  background:#5a6268;
-}
 
 .auth-container input{
   display:block;
