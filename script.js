@@ -1,3 +1,55 @@
+/* === 0. Пользователи ===================== */
+const USERS = [
+  {login:"admin",     password:"NewAdmPassword123!"},
+  {login:"Юлия",      password:"NewYuliaPass456!"},
+  {login:"Руслан",    password:"NewRuslanPass789!"},
+  {login:"Ольга",     password:"NewOlgaPass321!"},
+  {login:"Екатерина", password:"NewEkaterinaPass654!"},
+  {login:"Manager6",  password:"NewManager6Pass987!"},
+  {login:"Manager7",  password:"NewManager7Pass135!"},
+  {login:"Manager8",  password:"NewManager8Pass246!"},
+  {login:"Manager9",  password:"NewManager9Pass369!"},
+  {login:"Manager10", password:"NewManager10Pass147!"}
+];
+
+/* === 1. Аутентификация ==================== */
+function authenticate(){
+  const login    = document.getElementById('login').value.trim();
+  const password = document.getElementById('password').value.trim();
+  const errBox   = document.getElementById('auth-error');
+
+  const ok = USERS.some(u=>u.login===login && u.password===password);
+  if(!ok){
+    errBox.style.display='block';
+    return;
+  }
+
+  // успех
+  errBox.style.display='none';
+  localStorage.setItem('houseCalcUser', login);
+
+  document.getElementById('auth-container').classList.add('hidden');
+  document.getElementById('calc-container').classList.remove('hidden');
+
+  // твоя «первая инициализация» формы
+  handleTypeChange();       // размеры и т.п.
+}
+
+/* === 2. Выход ============================= */
+function logout(){
+  localStorage.removeItem('houseCalcUser');
+  location.reload();        // перезагрузить страницу – достаточно
+}
+
+/* === 3. Автовход при перезагрузке ========= */
+window.addEventListener('DOMContentLoaded', ()=>{
+  if(localStorage.getItem('houseCalcUser')){
+    document.getElementById('auth-container').classList.add('hidden');
+    document.getElementById('calc-container').classList.remove('hidden');
+    handleTypeChange();
+  }
+});
+
 /* ------------------------------------------------------------------
    0. Утилита форматирования цен с точкой
 ------------------------------------------------------------------ */
@@ -53,9 +105,9 @@ const FLOOR   = { floor:1000, mouse:400 };
 // Перегородки
 const PART       = { p1:2500, p2:3200, p3:4000 };
 const PART_TITLE = {
-  p1:"Перегородка односторонняя",
-  p2:"Перегородка двусторонняя",
-  p3:"Перегородка двусторонняя + утепл. 100 мм"
+  p1: "Перегородка односторонняя",
+  p2: "Перегородка двусторонняя",
+  p3: "Перегородка двусторонняя с утеплением 100 мм"
 };
 
 // Двери и пандус
@@ -232,6 +284,9 @@ const roofContainer    = document.getElementById("roofContainer");
 
 const inpVerWidth  = document.getElementById("verWidth");
 const inpVerDepth  = document.getElementById("verDepth");
+const btnReset     = document.getElementById("btnReset");
+const btnClearAddr = document.getElementById("btnClearAddr");
+
 
 /* ------------------------------------------------------------------
    4. Инициализация Яндекс.Карт и обработчики
@@ -242,7 +297,55 @@ ymaps.ready(() => {
     center:[55.751244,37.618423],
     zoom:9
   });
-  new ymaps.SuggestView("inpAddr",{ results:5 });
+  // ─── Подсказки адреса, как в тепличном калькуляторе ───────────────────────────
+const addrInput   = document.getElementById('inpAddr');
+const suggBox     = document.getElementById('suggestions');
+
+addrInput.addEventListener('input', () => {
+    const q = addrInput.value.trim();
+    if (q.length < 3) {            // меньше 3-х символов — ничего не показываем
+        suggBox.style.display = 'none';
+        return;
+    }
+
+    ymaps.geocode(q, { results: 5 }).then(res => {
+        const items = res.geoObjects.toArray();
+        if (!items.length) {
+            suggBox.style.display = 'none';
+            return;
+        }
+
+        suggBox.innerHTML = '';            // чистим старые
+        suggBox.style.display = 'block';
+
+        items.forEach(item => {
+            const div  = document.createElement('div');
+            div.className = 'suggestion';
+
+            const addr = item.getAddressLine();
+            // подчёркиваем найденную часть
+            const re   = new RegExp(`(${q})`, 'ig');
+            div.innerHTML = addr.replace(re, '<span class="highlight">$1</span>');
+
+            div.onclick = () => {
+                addrInput.value      = addr;      // вставляем выбранный адрес
+                suggBox.style.display = 'none';   // прячем подсказки
+             };
+
+            suggBox.appendChild(div);
+        });
+    }).catch(err => {
+        console.error('geocode error', err);
+        suggBox.style.display = 'none';
+    });
+});
+
+// клик мимо блока — закрываем подсказки
+document.addEventListener('click', e => {
+    if (!e.target.closest('.address-container')) suggBox.style.display = 'none';
+});
+
+
 
   // слушаем события
   selType.addEventListener("change", handleTypeChange);
@@ -250,6 +353,9 @@ ymaps.ready(() => {
   btnAddWindow.addEventListener("click", addWindowRow);
   [inpWidth, inpLength].forEach(el => el.addEventListener("change", populatePileOptions));
   btnCalc.addEventListener("click", calculate);
+  btnReset.addEventListener("click", resetFilters);
+btnClearAddr.addEventListener("click", clearDelivery);
+
 
   handleTypeChange();
 });
@@ -636,6 +742,7 @@ if (type === "house") {
 }
 
 
+
   // 6) Перегородка по центру (база для дома)
   if (type==="house") pkg.push("– Перегородка: по центру дома, входит в базу");
 
@@ -712,4 +819,20 @@ async function getKm(address){
     console.error(e);
     return null;
   }
+}  
+  // Сброс всех фильтров и результата
+function resetFilters() {
+  selType.value = "house";
+  handleTypeChange();
+  inpAddr.value = "";
+  out.textContent = "";
+  map.geoObjects.removeAll();
+  windowsContainer.innerHTML = "";
 }
+
+// Сброс только адреса и маршрута
+function clearDelivery() {
+  inpAddr.value = "";
+  map.geoObjects.removeAll();
+}
+
