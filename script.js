@@ -547,13 +547,31 @@ async function calculate(){
     if (km > 250) { alert("Доставка >250 км"); return; }
     const perKm = DELIV[`${w}x${l}`] || 300;
     del = Math.max(Math.ceil(perKm * km / 50) * 50, 7000);
-  } else {
-    const cfg = CONFIG[type];
-    basePrice = cfg.basePrice[`${w}x${l}`] || 0;
-    const veh = (w > 4 || l > 4) ? 2 : 1;
-    const rateKm = veh > 1 ? cfg.delivery.perKm2 : cfg.delivery.perKm1;
-    del = Math.max(Math.ceil(rateKm * km * veh / 50) * 50, cfg.delivery.min);
-  }
+  } else {                               // хозблок или бытовка
+  const cfg  = CONFIG[type];
+
+    basePrice = cfg.basePrice[`${w}x${l}`] || 0;   // ← вернули
+
+
+  // 1-й груз (всё, что <=4×4 м) везётся одной «газелью»
+  // если ширина >4 ИЛИ длина >4  → две машины
+  const veh  = (w > 4 || l > 4) ? 2 : 1;
+
+  // берём нужный тариф (80/100  или  140/180)
+  const rate = (veh === 2)
+    ? cfg.delivery.perKm2        // 140 или 180
+    : cfg.delivery.perKm1;       // 80  или 100
+
+  let cost   = rate * km;        // просто километраж × тариф
+
+  // минималка: 5000/6000 за машину
+  const min  = cfg.delivery.min * veh;   // удваиваем, если две машины
+  if (cost < min) cost = min;
+
+  // округляем к ближайшим 50 ₽ вверх
+  del = Math.ceil(cost / 50) * 50;
+}
+
 
   /* ===== 8.3. Доп. опции ===== */
   let extras = 0, linesExtra = [];
@@ -699,7 +717,12 @@ if (type !== "hoblok") {
 }
 
 // 3) Утепление
-pkg.push(`– Утепление: ${getLabel(selInsul.selectedOptions[0]) || "Мин. вата 100 мм + ВВИ"}`);
+if (type !== "hoblok") {
+  const label = (selInsul.value === "none")
+    ? "Мин. вата 100 мм + ВВИ"          // базовый слой
+    : getLabel(selInsul.selectedOptions[0]);
+  pkg.push(`– Утепление: ${label}`);
+}
 
 // 4) Кровля
 pkg.push(`– Кровля: ${getLabel(selRoofMat.selectedOptions[0])}`);
@@ -722,7 +745,7 @@ if (type === "house") pkg.push("– Перегородка: по центру д
 
 // 7) Доп-элементы пользователя
 if (vw > 0 && vd > 0)               pkg.push(`– Веранда: ${vw}×${vd} м`);
-if (chkFloor.checked)               pkg.push("– Шпунт-пол");
+// if (chkFloor.checked) pkg.push("– Шпунт-пол");
 if (chkMouse.checked)               pkg.push("– Сетка «анти-мышь»");
 if (partType !== "none" && partLen)
   pkg.push(`– ${PART_TITLE[partType]} (${partLen} м)`);
@@ -736,6 +759,17 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
   const qty     = parseInt(row.querySelector(".win-qty").value) || 1;
   if (size) pkg.push(`– ${typeWin === "pvhdoor" ? "Дверь ПВХ" : "Окно ПВХ"} ${size} (${qty} шт)`);
 });
+
+/* ──────── НОВЫЙ БЛОК: материал пола ──────── */
+if (chkFloor.checked) {
+  // выбрана опция «Шпунт-пол»
+  pkg.push("– Пол: шпунтованная доска 22 мм");
+} else {
+  // базовая комплектация
+  pkg.push("– Пол: обрезная доска 25×150 мм");
+}
+/* ──────────────────────────────────────────── */
+
 
 // 8) Высота помещения
 if (type === "house") {
@@ -800,9 +834,16 @@ async function getKm(address){
     if(!obj){ alert("Адрес не найден"); return null; }
     const coords= obj.geometry.getCoordinates();
     const route = await ymaps.route([[55.751244,37.618423], coords]);
+    const kmRaw = route.getLength() / 1000;   // то, что вернул Яндекс
+    const km    = Math.max(0, kmRaw - 30);    // отнимаем 30 км, но не меньше нуля
+    if (km > 280) {            // дальше 280 км не возим
+    alert("Доставка максимум 250 КМ от МКАД");
+    return null;             // вернём null — вызывающий код увидит и прервётся
+    }
+
     map.geoObjects.removeAll();
     map.geoObjects.add(route);
-    return route.getLength()/1000;
+    return km;
   }catch(e){
     alert("Ошибка Яндекс.Карт (см. консоль)");
     console.error(e);
