@@ -101,6 +101,7 @@ const OUTREP = {
 OUTREP['none'] = 500;  // базовая вагонка B–C
 
 const FLOOR   = { floor:1000, mouse:400 };
+const RAMP = 2000; // пандус
 
 // Перегородки
 const PART       = { p1:2500, p2:3200, p3:4000 };
@@ -108,16 +109,6 @@ const PART_TITLE = {
   p1: "Перегородка односторонняя",
   p2: "Перегородка двусторонняя",
   p3: "Перегородка двусторонняя с утеплением 100 мм"
-};
-
-// Двери и пандус
-const DOORS = {
-  door1:3000,
-  doorRamp:2000,
-  doorFil:6000,
-  doorMetal:12000,
-  doorTh:30000,
-  doorLux:35000
 };
 
 // Сваи
@@ -136,17 +127,29 @@ const PILE_COUNT = {
 const PILE_COUNT_SMALL = {
   "2x2":4,  "2x2.5":4, "2x3":4,
   "2x4":6,  "2x5":6,   "2x6":6,
-  "3x2":6,  "3x2.5":6, "3x3":6,
+  "3x2":4,  "3x2.5":4, "3x3":9,
   "3x4":9,  "3x5":9,   "3x6":9
 };
 // ▸ вернуть «правильное» количество свай по типу и размеру
 function getPileCount(type, w, l) {
-  const key = `${w}x${l}`;
-  if (type !== "house" && PILE_COUNT_SMALL.hasOwnProperty(key)) {
-    return PILE_COUNT_SMALL[key];       // хозблок / бытовка
+  // две записи одного и того же размера – «3x4» и «4x3»
+  const k1 = `${w}x${l}`;
+  const k2 = `${l}x${w}`;
+
+  // ── хозблок / бытовка ─────────────────────────────
+  if (type !== "house") {
+    if (PILE_COUNT_SMALL[k1] !== undefined) return PILE_COUNT_SMALL[k1];
+    if (PILE_COUNT_SMALL[k2] !== undefined) return PILE_COUNT_SMALL[k2];
   }
-  return PILE_COUNT[key] || 12;         // дом или дефолт
+
+  // ── каркасный дом ─────────────────────────────────
+  if (PILE_COUNT[k1] !== undefined) return PILE_COUNT[k1];
+  if (PILE_COUNT[k2] !== undefined) return PILE_COUNT[k2];
+
+  // ── на всякий случай ─────────────────────────────
+  return 12;        // «безопасный» дефолт
 }
+
 
 
 // Окна ПВХ / двери ПВХ
@@ -168,6 +171,18 @@ const WINDOWS = {
   "150×190":{1:25000},
   "180×190":{1:26000},
   "90×205 дверь ПВХ":{2:35000}
+};
+const WOOD_PRICES = {
+  win: {                // окна
+    "60×90": 2000,
+    "80×80": 3000,
+    "100×100": 3500
+  },
+  door: {               // двери
+    std:        2000,   // обычная
+    hinge:      2000,   // распашная
+    hingeWarm:  3000    // распашная утеплённая
+  }
 };
 
 /* ------------------------------------------------------------------
@@ -279,6 +294,8 @@ const inpAddr      = document.getElementById("inpAddr");
 const btnCalc      = document.getElementById("btnCalc");
 const out          = document.getElementById("out");
 
+const chkRamp = document.getElementById("chkRamp");
+
 const selInsul     = document.getElementById("selInsul");
 const selRoofMat   = document.getElementById("selRoofMat");
 const selInRep     = document.getElementById("selInRep");
@@ -288,9 +305,6 @@ const chkMouse     = document.getElementById("chkMouse");
 
 const selPart      = document.getElementById("selPart");
 const inpPartLen   = document.getElementById("inpPartLen");
-
-const selDoors     = document.getElementById("selDoors");
-const chkRamp      = document.getElementById("chkRamp");
 
 const selPile      = document.getElementById("selPile");
 
@@ -435,11 +449,14 @@ function handleTypeChange() {
   const roof = document.querySelector('input[name="roof"]:checked').value;
   updateFinishSelects(type, roof);
 
-  // 1) ширина/длина
-  inpWidth.innerHTML  = "";
-  cfg.widths.forEach(w => inpWidth.innerHTML  += `<option>${w}</option>`);
-  inpLength.innerHTML = "";
-  cfg.lengths.forEach(l => inpLength.innerHTML += `<option>${l}</option>`);
+  // 1) ширина / длина
+inpWidth.innerHTML =
+  cfg.widths.map(w => `<option>${w}</option>`).join("");
+inpWidth.value = cfg.widths[0];          // ← первая ширина по умолчанию
+
+inpLength.innerHTML =
+  cfg.lengths.map(l => `<option>${l}</option>`).join("");
+inpLength.value = cfg.lengths[0];        // ← первая длина по умолчанию
 
   // 2) показываем блок «Тип крыши» и меняем подписи
   roofContainer.style.display = "block";
@@ -452,12 +469,32 @@ function handleTypeChange() {
   });
 
   // 8) сбрасываем остальные селекты и чекбоксы
-  [selInsul, selRoofMat, selInRep, selOutRep, selPart, selDoors].forEach(sel => {
-    Array.from(sel.options).forEach(o => o.disabled = false);
-    sel.value = sel.options[0].value;
-    sel.closest('label').style.display = 'block';
-  });
-  chkFloor.checked = chkMouse.checked = chkRamp.checked = false;
+[selInsul, selRoofMat, selInRep, selOutRep, selPart].forEach(sel => {
+  // 1. разрешаем все опции
+  Array.from(sel.options).forEach(o => o.disabled = false);
+
+  // 2. ставим первое значение
+  if (sel.options.length) sel.value = sel.options[0].value;
+
+  // 3. показываем label (если вдруг был скрыт)
+  sel.closest('label').style.display = 'block';
+});
+
+// -------------------------
+// уже затем – то, что добавляем
+// -------------------------
+
+// сбрасываем галочки пола / мыши / пандуса
+chkFloor.checked = chkMouse.checked = chkRamp.checked = false;
+
+// если выбран хозблок – прячем утепление
+if (selType.value === 'hoblok') {
+  selInsul.value = 'none';                       // ставим «без изменений»
+  selInsul.closest('label').style.display = 'none'; // сам label прячем
+} else {
+  selInsul.closest('label').style.display = '';  // в остальных строениях показываем
+}
+
 
   // 9) дополнительные правки по типу строения
   if (type === "house") {
@@ -470,7 +507,6 @@ function handleTypeChange() {
   } else {
     selOutRep.querySelector('option[value="vag_ext"]').disabled = true;
   }
-  selDoors.querySelector('option[value="door1"]').disabled = true;
 
   // (перегородки теперь доступны всегда)
   // 10) сброс веранды и обновление свай
@@ -500,37 +536,69 @@ function populatePileOptions () {
 
 
 /* ------------------------------------------------------------------
-   7. addWindowRow — добавляем строку «Окно/дверь ПВХ»
+   7. addWindowRow — добавляем строку «Окно / дверь»
 ------------------------------------------------------------------ */
-function addWindowRow(){
+function addWindowRow () {
   const clone = tmplWindowRow.content.cloneNode(true);
   const row   = clone.querySelector(".window-row");
-  const selTypeWin = row.querySelector(".win-type");
-  const selCam     = row.querySelector(".win-cam");
-  const selSz      = row.querySelector(".win-size");
-  const btnX       = row.querySelector(".btnRemoveWindow");
 
-  function rebuild(){
-    const cam = selCam.value, isDoor = selTypeWin.value==="pvhdoor";
-    selSz.innerHTML = '<option value="">— размер —</option>';
-    Object.entries(WINDOWS).forEach(([size,cams])=>{
-      if(isDoor){
-        if(size.includes("дверь ПВХ")){
-          const p = cams[2]||cams[1];
-          selSz.innerHTML += `<option value="${size}">${size} (${formatPrice(p)} ₽)</option>`;
+  const selType = row.querySelector(".win-type");   // pvcWin | woodWin | pvcDoor | woodDoor
+  const selCam  = row.querySelector(".win-cam");    // 1-кам / 2-кам  (только для ПВХ-окон)
+  const selSize = row.querySelector(".win-size");   // размеры / варианты
+  const qtyInp  = row.querySelector(".win-qty");
+  const btnX    = row.querySelector(".btnRemoveWindow");
+
+  // карты для деревянных дверей (чисто для подписи)
+  const DOOR_CAPTION = { std:"Обычная", hinge:"Распашная", hingeWarm:"Распашная утеплённая" };
+
+  // перестраиваем drop-down при любом изменении
+  function rebuild () {
+    const t = selType.value;         // выбранный «тип»
+
+    /* 1. показывать ли поле «кам.» */
+    selCam.style.display = (t === "pvcWin") ? "" : "none";
+
+    /* 2. наполняем список размеров / вариантов */
+    selSize.innerHTML = '<option value="">— размер / тип —</option>';
+
+    if (t === "pvcWin") {                        // ▸ окно ПВХ
+      const cam = selCam.value;
+      Object.entries(WINDOWS).forEach(([sz, cams]) => {
+        if (cams[cam]) {
+          selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(cams[cam])} ₽)</option>`;
         }
-      } else if(cams[cam]){
-        selSz.innerHTML += `<option value="${size}">${size} (${formatPrice(cams[cam])} ₽)</option>`;
-      }
-    });
+      });
+
+    } else if (t === "pvcDoor") {                // ▸ дверь ПВХ
+      Object.entries(WINDOWS).forEach(([sz, cams]) => {
+        if (sz.includes("дверь ПВХ")) {
+          const p = cams[2] || cams[1];
+          selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(p)} ₽)</option>`;
+        }
+      });
+
+    } else if (t === "woodWin") {                // ▸ окно деревянное
+      Object.entries(WOOD_PRICES.win).forEach(([sz, p]) => {
+        selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(p)} ₽)</option>`;
+      });
+
+    } else if (t === "woodDoor") {               // ▸ дверь деревянная
+      Object.entries(WOOD_PRICES.door).forEach(([key, p]) => {
+        selSize.innerHTML +=
+          `<option value="${key}">${DOOR_CAPTION[key]} (${formatPrice(p)} ₽)</option>`;
+      });
+    }
   }
 
-  selCam.addEventListener("change", rebuild);
-  selTypeWin.addEventListener("change", rebuild);
-  rebuild();
-  btnX.addEventListener("click", ()=>row.remove());
+  // ─── события ───────────────────────────────────────────────────
+  selType.addEventListener("change", rebuild);
+  selCam .addEventListener("change", rebuild);
+  btnX   .addEventListener("click", () => row.remove());
+
+  rebuild();                       // первичное заполнение
   windowsContainer.appendChild(row);
 }
+
 
 // Человекочитаемые названия материалов
 const MATERIAL_NAME = {
@@ -623,10 +691,12 @@ async function calculate(){
   }
 
   /* --- 1. Утепление (если > базового) --- */
-  if (selInsul.value !== "none") {
-    const diff = INSUL[selInsul.value] - INSUL.roll100;
-    if (diff > 0) addExtra(diff * area, getLabel(selInsul.selectedOptions[0]));
-  }
+  // --- 1. Утепление (считаем только для бытовки и дома) ---
+if (selType.value !== "hoblok" && selInsul.value !== "none") {
+  const diff = INSUL[selInsul.value] - INSUL.roll100;
+  if (diff > 0) addExtra(diff * area, getLabel(selInsul.selectedOptions[0]));
+}
+
 
   /* --- 2. Кровля (цветной/металлочерепица) --- */
   if (selRoofMat.value !== "galv" && selRoofMat.value !== "ondulin") {
@@ -661,14 +731,6 @@ async function calculate(){
     addExtra(PART[partType]*partLen, `${PART_TITLE[partType]} (${partLen} м)`);
   }
 
-  /* --- 7. Двери и пандус --- */
-  if (selDoors.value!=="none") {
-    addExtra(DOORS[selDoors.value], getLabel(selDoors.selectedOptions[0]));
-  }
-  if (chkRamp.checked) {
-    addExtra(DOORS.doorRamp, "Пандус под самонаборную дверь");
-  }
-
   /* --- 8. Сваи --- */
   if (selPile.value) {
     const dim = selPile.value;
@@ -677,16 +739,45 @@ async function calculate(){
     addExtra(price, `Свайный фундамент ${dim} × ${cnt} шт`);
   }
 
-  /* --- 9. Окна / двери ПВХ --- */
-  windowsContainer.querySelectorAll(".window-row").forEach(row=>{
-    const typeWin = row.querySelector(".win-type").value;
-    const cam     = row.querySelector(".win-cam").value;
-    const size    = row.querySelector(".win-size").value;
-    const qty     = parseInt(row.querySelector(".win-qty").value) || 1;
-    if(!size) return;
-    const pricePer = WINDOWS[size][typeWin==="pvhdoor"?2:cam];
-    addExtra(pricePer*qty, `${typeWin==="pvhdoor"?"Дверь ПВХ":"Окно ПВХ"} ${size} (${qty} шт)`);
-  });
+  /* --- 9. Пандус --- */
+if (chkRamp.checked) addExtra(RAMP, "Пандус под самонаборную дверь");
+
+  /* --- 9. Окна / двери (все варианты) --- */
+windowsContainer.querySelectorAll(".window-row").forEach(row => {
+  const kind = row.querySelector(".win-type").value;   // pvcWin | woodWin | pvcDoor | woodDoor
+  const cam  = row.querySelector(".win-cam").value;
+  const sel  = row.querySelector(".win-size");
+  const code = sel.value;                 // строка-код из <option value="…">
+  const qty  = +row.querySelector(".win-qty").value || 1;
+  if (!code) return;                      // ничего не выбрано
+
+  let price = 0, caption = "";
+
+  switch (kind) {
+    case "pvcWin":
+      price   = WINDOWS[code][cam];
+      caption = `Окно ПВХ ${code}`;
+      break;
+
+    case "pvcDoor":
+      price   = WINDOWS[code][2] || WINDOWS[code][1];
+      caption = `Дверь ПВХ ${code}`;
+      break;
+
+    case "woodWin":
+      price   = WOOD_PRICES.win[code];
+      caption = `Окно деревянное ${code}`;
+      break;
+
+    case "woodDoor":
+      price   = WOOD_PRICES.door[code];
+      const cap = { std:"Обычная", hinge:"Распашная", hingeWarm:"Распашная утеплённая" }[code];
+      caption = `Дверь деревянная (${cap})`;
+      break;
+  }
+
+  if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+});
 
   /* ===== 8.4. Логика отделки (замена материала) ===== */
 
@@ -786,17 +877,25 @@ if (type !== "hoblok") {
 pkg.push(`– Кровля: ${getLabel(selRoofMat.selectedOptions[0])}`);
 
 // 5) Окна (деревянные по умолчанию) и двери базовые
-let hasPVCwindow = false;
+let hasUserWindow = false;                    // новое имя
+
 windowsContainer.querySelectorAll(".window-row").forEach(row => {
   const size = row.querySelector(".win-size").value;
-  if (size && row.querySelector(".win-type").value === "window") hasPVCwindow = true;
+  const kind = row.querySelector(".win-type").value;   // pvcWin | woodWin | …
+  if (size && (kind === "pvcWin" || kind === "woodWin")) hasUserWindow = true;
 });
-if (!hasPVCwindow) {
+
+if (!hasUserWindow) {                         // и здесь новое имя
   if (type === "house") pkg.push("– Окна: 3 × деревянные 80×80 см");
-  else pkg.push("– Окно: деревянное 60×90 см (1 шт)");
+  else                   pkg.push("– Окно: деревянное 60×90 см (1 шт)");
 }
-if (type === "house") pkg.push("– Двери РФ: самонаборные, 1 комплект");
-else pkg.push("– Дверь: самонаборная 200×70–90 см");
+// 5) Базовые двери
+if (type === "house") {
+  // у дома есть центральная перегородка → нужно 2 двери
+  pkg.push("– Двери РФ: самонаборные (2 шт)");
+} else {
+  pkg.push("– Дверь: самонаборная 200×70–90 см");
+}
 
 // 6) Перегородка по центру (база для дома)
 if (type === "house") pkg.push("– Перегородка: по центру дома, входит в базу");
@@ -809,25 +908,30 @@ if (partType !== "none" && partLen) {
   pkg.push(`– ${PART_TITLE[partType]} (${partLen} м)`);
 }
 
-if (selDoors.value !== "none") {
-  pkg.push(`– ${getLabel(selDoors.selectedOptions[0])}`);
-}
-if (chkRamp.checked) {
-  pkg.push("– Пандус под самонаборную дверь");
-}
-
 if (selPile.value) {
   const pileCnt = getPileCount(type, w, l);          // ← корректное число свай
   pkg.push(`– Свайный фундамент: ${selPile.value} × ${pileCnt} шт`);
 }
 
+/* --- Окна / двери пользователя --- */
 windowsContainer.querySelectorAll(".window-row").forEach(row => {
-  const typeWin = row.querySelector(".win-type").value;
-  const size    = row.querySelector(".win-size").value;
-  const qty     = parseInt(row.querySelector(".win-qty").value) || 1;
-  if (size) {
-    pkg.push(`– ${typeWin === "pvhdoor" ? "Дверь ПВХ" : "Окно ПВХ"} ${size} (${qty} шт)`);
-  }
+  const kind = row.querySelector(".win-type").value;
+  const size = row.querySelector(".win-size").value;
+  const qty  = +row.querySelector(".win-qty").value || 1;
+  if (!size) return;
+
+  const textMap = {
+    pvcWin:  "Окно ПВХ",
+    pvcDoor: "Дверь ПВХ",
+    woodWin: "Окно деревянное",
+    woodDoor:"Дверь деревянная"
+  };
+  const title = textMap[kind] || "Окно/дверь";
+  const nice  = (kind === "woodDoor")
+      ? { std:"обычная", hinge:"распашная", hingeWarm:"распашная утеплённая" }[size]
+      : size;
+
+  pkg.push(`– ${title} ${nice} (${qty} шт)`);
 });
 
 /* ──────── НОВЫЙ БЛОК: материал пола ──────── */
