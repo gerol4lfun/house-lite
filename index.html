@@ -203,25 +203,6 @@ type="button">
         </label>
       </div>
 
-      <!-- 3. двери и пандус -->
-      <div class="extras">
-        <h2>Двери и пандус</h2>
-        <label>Выберите двери:
-          <select id="selDoors">
-            <option value="none">— нет —</option>
-            <option value="door1">Самонаборная распашная дверь (входит в базу)</option>
-            <option value="doorFil">Деревянная филёнчатая дверь (6 000 ₽)</option>
-            <option value="doorMetal">Металлическая дверь (стандартная) (12 000 ₽)</option>
-            <option value="doorTh">Металлическая дверь с терморазрывом (30 000 ₽)</option>
-            <option value="doorLux">Металлическая дверь «Термо-Люкс» (35 000 ₽)</option>
-          </select>
-          
-        </label>
-        <label style="display:block; margin-top:8px;">
-          <input type="checkbox" id="chkRamp" /> Пандус под самонаборную (2000 ₽)
-        </label>
-      </div>
-
       <!-- 4. фундамент -->
       <div class="extras">
         <h2>Фундамент (сваи)</h2>
@@ -232,18 +213,25 @@ type="button">
 
       <!-- 5. окна / двери ПВХ -->
       <div class="extras">
-        <h2>Окна ПВХ / Двери ПВХ</h2>
+        <h2>Окна / Двери</h2>
         <button type="button" id="btnAddWindow">Добавить окно / дверь</button>
+        <label style="display:block; margin-top:10px;">
+  <input type="checkbox" id="chkRamp">
+  Пандус под самонаборную дверь (2 000 ₽)
+</label>
         <div id="windowsContainer"></div>
         <template id="tmplWindowRow">
           <div
             class="window-row"
             style="display:flex; gap:8px; align-items:center; margin-top:8px;"
           >
-            <select class="win-type" style="width:120px">
-              <option value="window">Окно</option>
-              <option value="pvhdoor">Дверь ПВХ</option>
-            </select>
+            <select class="win-type" style="width:140px">
+             <option value="pvcWin">Окно ПВХ</option>
+             <option value="woodWin">Окно деревянное</option>
+             <option value="pvcDoor">Дверь ПВХ</option>
+             <option value="woodDoor">Дверь деревянная</option>
+           </select>
+
             <select class="win-cam">
               <option value="1">1-кам.</option>
               <option value="2">2-кам.</option>
@@ -260,6 +248,8 @@ type="button">
             />
             <button type="button" class="btnRemoveWindow">×</button>
           </div>
+          </label>
+
         </template>
       </div>
     </div>
