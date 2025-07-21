@@ -50,12 +50,25 @@ window.addEventListener('DOMContentLoaded', ()=>{
   }
 });
 
+
 /* ------------------------------------------------------------------
    0. Утилита форматирования цен с точкой
 ------------------------------------------------------------------ */
 function formatPrice(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
+
+/* --- высота стен и площадь стен -------------------------------- */
+function getWallHeight(type, roof, ext = false){
+  if (type === "house") {
+    if (roof === "gable") return ext ? 2.8 : 2.5;   // двускатка
+    return 2.55;                                    // ломаная
+  }
+    if (type === "bytovka") return 2.0;   // бытовка
+  return 2.1;                           // хозблок
+}
+
+function wallArea(w, l, h){ return 2 * (w + l) * h; }  // 2*(W+L)*H
 
 /* ------------------------------------------------------------------
    1. Основные константы
@@ -71,11 +84,52 @@ const DELIV   = {
   "6x8":300, "6x9":300, "6x10":300, "8x8":300,
   "9x8":300
 };
+const MAX_KM = 250;      // лимит: 250 км от МКАД
 
 // Опции по площади
 const INSUL   = { roll100:550, min150:2000, rock100:1000, basalt150:4000 };
 const ROOFMAT = { galv:0, ondulin:0, profColor:750, tile_lom:800, tile_gable:1200 };
 const VERANDA = { verRoof:7500, verGable:9000 };
+
+function getHoblokBasePrice(w, l){
+  const key = `${w}x${l === 2.5 ? 3 : l}`;
+  return CONFIG.hoblok.basePrice[key] || 0;   // просто «голый» хозблок
+}
+/* ─── Доска: длины и цены ───────────────────────────────────────── */
+const BOARD_LEN  = { imitA:[6], imitB:[5,6], block:[6], floor:[6] };
+//     ₽ за ОДНУ доску нужной длины (примерные цены, правьте сами)
+const BOARD_PRICE = { imitA:540, imitB:420, block:650, floor:580 };
+
+/* Быстрая подборка: сколько досок (pcs) и отход (waste) под длину L  */
+function boardsFor(L, lens){
+  let best=null;
+  for(const len of lens){
+    const pcs=Math.ceil(L/len);
+    const waste=pcs*len-L;
+    if(!best || waste<best.waste) best={pcs,len,waste};
+  }
+  return best;   // {pcs, len, waste}
+}
+
+/* Считаем доски на ВСЕ стены + (опц.) потолок/пол  */
+function countBoards(w,l,h,code,withCeil=false){
+  const lens=BOARD_LEN[code];             // какие длины есть
+  if(!lens) return 0;                     // на всякий случай
+  let pieces=0;
+
+  // 4 стены
+  [[w,h],[l,h],[w,h],[l,h]].forEach(([L,H])=>{
+    const b=boardsFor(L,lens);
+    pieces+=b.pcs*H;
+  });
+
+  // потолок или пол (для шпунт-пола)
+  if(withCeil){
+    const b=boardsFor(w,lens);
+    pieces+=b.pcs*l;
+  }
+  return pieces;
+}
 
 // Внутренняя отделка
 const INREP = {
@@ -89,6 +143,16 @@ const INREP = {
   osb_block:1120
 };
 INREP['none'] = 0;  // базовая ОСБ-3
+const OSB_PLAIN = 500;   // цена 1 м² простой ОСБ-3, меняйте здесь
+// ------------------------------------------------------------------
+// Площадь ОСБ для хозблока (стены + потолок), округление к 3 м² вверх
+// ------------------------------------------------------------------
+function getOsbArea(w, l) {
+  const h = getWallHeight("hoblok", "lom", false);   // у хозблока всегда односкат
+  const walls = wallArea(w, l, h);
+  const ceil  = w * l;
+  return Math.ceil((walls + ceil) / 3) * 3;          // шаг 3 м²
+}
 
 // Внешняя отделка
 const OUTREP = {
@@ -181,8 +245,14 @@ const WOOD_PRICES = {
   door: {               // двери
     std:        2000,   // обычная
     hinge:      2000,   // распашная
-    hingeWarm:  3000    // распашная утеплённая
+    hingeWarm:  3000,    // распашная утеплённая
+    filen:      6000   
   }
+};
+const METAL_PRICES = {
+  rf:         12000,   // Дверь РФ
+  rfThermo:   30000,   // РФ с терморазрывом
+  thermoLux:  35000    // Термо Люкс
 };
 
 /* ------------------------------------------------------------------
@@ -271,17 +341,24 @@ const FINISH_PROFILES = {
       ["osb_extA",  "Вагонка A (500 ₽/м²)"]
     ]
   },
-  hoblok_lom: {
-    inner: [],
+    hoblok_lom: {
+    inner: [
+      ["none",     "— без отделки —"],
+      ["osb_only","ОСБ-3 плита"],
+      ["osb_vag",  "ОСБ → вагонка B–C (120 ₽/м²)"],
+      ["osb_imit", "ОСБ → имитация бруса (350 ₽/м²)"],
+      ["osb_vagA", "ОСБ → вагонка A (500 ₽/м²)"],
+      ["osb_block","ОСБ → блок-хаус (1120 ₽/м²)"]
+    ],
     outer: [
-      ["none",      "— без изменений —"],
-      ["vag_ext",   "Вагонка B–C (500 ₽/м²)"],
-      ["imitBC_ext","Имитация бруса B–C (250 ₽/м²)"],
-      ["imitA_ext", "Имитация бруса A (400 ₽/м²)"],
-      ["block_ext", "Блок-хаус (1000 ₽/м²)"],
-      ["vag_extA",  "Вагонка B–C → вагонка A (380 ₽/м²)"]
+      ["none",       "— без изменений —"],
+      ["vag_ext",    "Вагонка B–C (500 ₽/м²)"],
+      ["imitBC_ext", "Имитация бруса B–C (250 ₽/м²)"],
+      ["imitA_ext",  "Имитация бруса A (400 ₽/м²)"],
+      ["block_ext",  "Блок-хаус (1000 ₽/м²)"],
+      ["osb_extA",   "Вагонка A (500 ₽/м²)"]
     ]
-  }
+  },
 };
 
 /* ------------------------------------------------------------------
@@ -410,33 +487,35 @@ btnCopy.addEventListener("click", () => {
  * @param {"lom"|"gable"} roof
  */
 function updateFinishSelects(type, roof) {
-  const key = `${type}_${roof}`;
-  const profile = FINISH_PROFILES[key];
-  if (!profile) return;
+  const key     = `${type}_${roof}`;
+  const profile = FINISH_PROFILES[key] || {};
 
-  // — внутренняя отделка —
+  // берём безопасные массивы, даже если чего-то нет
+  const inner = profile.inner || [];
+  const outer = profile.outer || [];
+
+  // — внутренняя —
   selInRep.innerHTML = "";
-  profile.inner.forEach(([value, label]) => {
+  inner.forEach(([value, label]) => {
     const opt = document.createElement("option");
     opt.value = value;
     opt.textContent = label;
     selInRep.appendChild(opt);
   });
 
-  // — внешняя отделка —
+  // — внешняя —
   selOutRep.innerHTML = "";
-  profile.outer.forEach(([value, label]) => {
+  outer.forEach(([value, label]) => {
     const opt = document.createElement("option");
     opt.value = value;
     opt.textContent = label;
     selOutRep.appendChild(opt);
   });
 
-  // Скрываем блок с внутренней отделкой, если нет вариантов
+  // если вариантов внутренней отделки нет — прячем label
   selInRep.closest("label").style.display =
-    profile.inner.length === 0 ? "none" : "";
+    inner.length === 0 ? "none" : "";
 }
-
 
 /* ------------------------------------------------------------------
    5. handleTypeChange: обновляем форму при смене типа строения
@@ -498,14 +577,14 @@ if (selType.value === 'hoblok') {
 
   // 9) дополнительные правки по типу строения
   if (type === "house") {
-    selInsul.querySelector('option[value="roll100"]').disabled = true;
+    // selInsul.querySelector('option[value="roll100"]').disabled = true;
   }
-  selRoofMat.querySelector('option[value="galv"]').disabled = true;
+  // selRoofMat.querySelector('option[value="galv"]').disabled = true;
   if (type==="house") {
     const roof = document.querySelector('input[name="roof"]:checked').value;
     selOutRep.querySelector(`option[value="${roof==="lom"?"vag_ext":"imitBC_ext"}"]`).disabled = true;
   } else {
-    selOutRep.querySelector('option[value="vag_ext"]').disabled = true;
+    // selOutRep.querySelector('option[value="vag_ext"]').disabled = true;
   }
 
   // (перегородки теперь доступны всегда)
@@ -524,15 +603,18 @@ function populatePileOptions () {
   const w    = +inpWidth.value;
   const l    = +inpLength.value;
 
-  const cnt  = getPileCount(type, w, l);      // ← единое место расчёта
+  const cnt  = getPileCount(type, w, l);
+
+  // 👉  для домов (type==='house') Ø76 не показываем
+  const skip76 = (type === "house");          // все дома ≥ 6×4 м
 
   selPile.innerHTML = '<option value="">— без свай —</option>';
   Object.entries(PILES).forEach(([dim, price]) => {
+    if (skip76 && dim.includes("×76")) return;               // пропускаем 76-е
     selPile.innerHTML +=
       `<option value="${dim}">${dim} × ${cnt} шт (${formatPrice(price)} ₽/шт)</option>`;
   });
 }
-
 
 
 /* ------------------------------------------------------------------
@@ -549,7 +631,8 @@ function addWindowRow () {
   const btnX    = row.querySelector(".btnRemoveWindow");
 
   // карты для деревянных дверей (чисто для подписи)
-  const DOOR_CAPTION = { std:"Обычная", hinge:"Распашная", hingeWarm:"Распашная утеплённая" };
+  const DOOR_CAPTION = { std:"Обычная", hinge:"Распашная", hingeWarm:"Распашная утеплённая",
+  filen: "Филенчатая" };
 
   // перестраиваем drop-down при любом изменении
   function rebuild () {
@@ -587,7 +670,19 @@ function addWindowRow () {
         selSize.innerHTML +=
           `<option value="${key}">${DOOR_CAPTION[key]} (${formatPrice(p)} ₽)</option>`;
       });
-    }
+    
+    } else if (t === "metalDoor") {                     // ▸ дверь металлическая
+  const CAPTION = {
+    rf:        "Дверь металлическая РФ",
+    rfThermo:  "Дверь РФ (термо)",
+    thermoLux: "Термо Люкс"
+  };
+  Object.entries(METAL_PRICES).forEach(([code, p]) => {
+    selSize.innerHTML +=
+      `<option value="${code}">${CAPTION[code]} (${formatPrice(p)} ₽)</option>`;
+  });
+ }
+
   }
 
   // ─── события ───────────────────────────────────────────────────
@@ -640,43 +735,50 @@ async function calculate(){
 
   let basePrice = 0, del = 0, finalInt, finalExt;
 
-  /* ===== 8.1. Геокод + маршрут ===== */
-  const addr = inpAddr.value.trim();
-  if (!addr) { alert("Введите адрес"); return; }
-  const km = await getKm(addr);
-  if (km === null) return;
-
   /* ===== 8.2. Базовая стоимость и доставка ===== */
   const area = w * l;
+  // ── подготовка доставки ─────────────────────────────
+const veh = (w > 4 || l > 4) ? 2 : 1;        // 1 машина до 4×4, иначе 2
+let minDeliv = (type === "house")            // минималка «от …»
+              ? 7000                         // для дома
+              : CONFIG[type].delivery.min * veh; // 5 000×veh или 6 000×veh
+
+const addr     = inpAddr.value.trim();       // что набрал пользователь
+let   km       = null;                       // будет число или null
+let   hasRoute = false;                      // флаг «маршрут построен»
+if (addr) {                                  // если адрес введён
+  km = await getKm(addr);                    // пробуем построить
+  if (km === null) return;                   // getKm уже показал alert
+  hasRoute = true;
+}
+
+  // ─── если адрес не введён — берём минималку ──────────────
+  if (!hasRoute) del = minDeliv;
+
+
+  // ► НАЦЕНКА, чтобы из голого хозблока «дотянуться» до цены бытовки с ОСБ
+                        // голый хозблок
+
   if (type === "house") {
-    const roof = document.querySelector('input[name="roof"]:checked').value;
-    basePrice = Math.ceil(area * RATE[roof].base / 10) * 10;
-    if (km > 250) { alert("Доставка >250 км"); return; }
-    const perKm = DELIV[`${w}x${l}`] || 300;
-    del = Math.max(Math.ceil(perKm * km / 50) * 50, 7000);
-  } else {                               // хозблок или бытовка
-  const cfg  = CONFIG[type];
+  const roof = document.querySelector('input[name="roof"]:checked').value;
+  basePrice = Math.ceil(area * RATE[roof].base / 10) * 10;
 
-     basePrice = cfg.basePrice[`${wPrice}x${lPrice}`] || 0;
+  /*  вот тут был расчёт доставки  */
 
+} else {                     // хозблок или бытовка
+  const cfg = CONFIG[type];
+  basePrice = (type === "hoblok")
+                ? getHoblokBasePrice(wPrice, lPrice)
+                : (cfg.basePrice[`${wPrice}x${lPrice}`] || 0);
 
-  // 1-й груз (всё, что <=4×4 м) везётся одной «газелью»
-  // если ширина >4 ИЛИ длина >4  → две машины
-  const veh  = (w > 4 || l > 4) ? 2 : 1;
-
-  // берём нужный тариф (80/100  или  140/180)
-  const rate = (veh === 2)
-    ? cfg.delivery.perKm2        // 140 или 180
-    : cfg.delivery.perKm1;       // 80  или 100
-
-  let cost   = rate * km;        // просто километраж × тариф
-
-  // минималка: 5000/6000 за машину
-  const min  = cfg.delivery.min * veh;   // удваиваем, если две машины
-  if (cost < min) cost = min;
-
-  // округляем к ближайшим 50 ₽ вверх
-  del = Math.ceil(cost / 50) * 50;
+  if (hasRoute) {                           // ← добавили условие
+    const rate = (veh === 2) ? cfg.delivery.perKm2 : cfg.delivery.perKm1;
+    let cost   = rate * km;
+    const min  = cfg.delivery.min * veh;
+    if (cost < min) cost = min;
+    del = Math.ceil(cost / 50) * 50;
+  }
+  // если адрес пуст, del уже равен minDeliv (см. пункт 1)
 }
 
 
@@ -693,7 +795,9 @@ async function calculate(){
   /* --- 1. Утепление (если > базового) --- */
   // --- 1. Утепление (считаем только для бытовки и дома) ---
 if (selType.value !== "hoblok" && selInsul.value !== "none") {
-  const diff = INSUL[selInsul.value] - INSUL.roll100;
+  // базовая толщина: 50 мм у бытовки, 100 мм у остальных
+const baseInsulPrice = (type === "bytovka") ? 0 : INSUL.roll100;
+const diff = INSUL[selInsul.value] - baseInsulPrice;
   if (diff > 0) addExtra(diff * area, getLabel(selInsul.selectedOptions[0]));
 }
 
@@ -774,6 +878,12 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
       const cap = { std:"Обычная", hinge:"Распашная", hingeWarm:"Распашная утеплённая" }[code];
       caption = `Дверь деревянная (${cap})`;
       break;
+      case "metalDoor":
+    price   = METAL_PRICES[code];
+    caption = { rf:"Дверь РФ",
+                rfThermo:"Дверь РФ (термо)",
+                thermoLux:"Термо Люкс" }[code];
+    break;
   }
 
   if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
@@ -786,30 +896,81 @@ const round3 = m => Math.ceil(m / 3) * 3;
 const IMIT   = new Set(['imitB', 'imitA']);   // всё, что считается «имитацией»
 
 /* --- 8.4.1. Внутренняя отделка --- */
-if (type !== "hoblok" && selInRep.value !== "none") {
-  const roof    = document.querySelector('input[name="roof"]:checked').value;
-  const intBase = (type === "house")
-      ? (roof === "lom" ? "osb" : "vagBC")   // лом. крыша → ОСБ, двускатка → вагонка
-      : "osb";                               // для бытовки/хозблока база — ОСБ
+if (type === "hoblok") {
+  /* ── 1. Без отделки ─────────────────────────── */
+  if (selInRep.value === "none") {
+    finalInt = null;           // ничего не выводим в «Комплектацию»
+    /* ── 2. Только ОСБ-3 ───────────────────────── */
+  } else if (selInRep.value === "osb_only") {
+  // вариант  «чистая ОСБ-3 без дальнейшей отделки»
+  extras += getOsbArea(w, l) * OSB_PLAIN;
+  finalInt = "osb";
 
-  const codeMapIn = {
-    osb_vag:"vagBC", osb_imit:"imitB", osb_vagA:"vagA", osb_block:"block",
-    vag_imitBC:"imitB", vag_imitA:"imitA", vag_block:"block"
+} else {  // osb_vag, osb_imit, osb_vagA, osb_block
+  // стоимости «довести до ОСБ»  +  «заменить ОСБ на выбранный материал»
+  const osbCost = getOsbArea(w, l) * OSB_PLAIN;   // шаг 1
+
+  const codeMapIn = {                 // какой материал выбрал пользователь
+    osb_vag:  "vagBC",
+    osb_imit: "imitB",
+    osb_vagA: "vagA",
+    osb_block:"block"
   };
-  const intTgt   = codeMapIn[selInRep.value];     // во что меняем
-  const priceIn  = (REPLACEMENT_PRICES[intBase] || {})[intTgt] || 0;
+  const intTgt  = codeMapIn[selInRep.value];
 
-  const areaIn   = IMIT.has(intTgt) ? round3(area) : area; // правило «кратно 3»
-  addExtra(priceIn * areaIn,
-           `${MATERIAL_NAME[intBase]} → ${MATERIAL_NAME[intTgt]}`);
+  // шаг 2 — замена ОСБ → выбранный материал
+  const priceIn = (REPLACEMENT_PRICES.osb || {})[intTgt] || 0;
 
-  finalInt = intTgt;              // запоминаем финиш-материал
+  // ▶ если выбран «imitA / imitB / block» → считаем по доскам
+if(["imitA","imitB","block"].includes(intTgt)){
+  const h = getWallHeight(type, roof, false);
+  const pcs = countBoards(w,l,h,intTgt,false);        // стены+потолок
+  const extra = pcs * BOARD_PRICE[intTgt];
+  addExtra(extra, `${MATERIAL_NAME[intBase]} → ${MATERIAL_NAME[intTgt]} (${pcs} шт)`); 
+  finalInt = intTgt;
+  continueCalc = false;          // чтобы старый расчёт ниже не сработал
+}
+
+  const h  = getWallHeight(type, "lom", false);   // всегда односкат
+  const S  = wallArea(w, l, h) + w * l;           // стены + потолок
+  const A  = ["imitB","imitA"].includes(intTgt) ? Math.ceil(S/3)*3 : S;
+
+  const totalFinish = osbCost + priceIn * A;      // всё вместе
+
+  addExtra(totalFinish, MATERIAL_NAME[intTgt]);   // 👉 одна строка в КП
+  finalInt = intTgt;
+}
+
 } else {
-  finalInt = (type === "hoblok")
-      ? null
-      : (type === "house"
-          ? (document.querySelector('input[name="roof"]:checked').value === "lom" ? "osb" : "vagBC")
-          : "osb");
+  /* ── СТАРЫЙ код для дома и бытовки — без изменений ── */
+  if (selInRep.value !== "none") {
+    const roof    = document.querySelector('input[name="roof"]:checked').value;
+    const intBase = (type === "house")
+      ? (roof === "lom" ? "osb" : "vagBC")
+      : "osb";
+
+    const codeMapIn = {
+      osb_vag:"vagBC", osb_imit:"imitB", osb_vagA:"vagA", osb_block:"block",
+      vag_imitBC:"imitB", vag_imitA:"imitA", vag_block:"block"
+    };
+    const intTgt  = codeMapIn[selInRep.value];
+    const priceIn = (REPLACEMENT_PRICES[intBase] || {})[intTgt] || 0;
+
+    const intH       = getWallHeight(type, roof, false);
+    const wallSquare = wallArea(w, l, intH);
+    const ceilSquare = w * l;
+    let areaInTot    = wallSquare + ceilSquare;
+    if (IMIT.has(intTgt)) areaInTot = round3(areaInTot);
+
+    addExtra(priceIn * areaInTot,
+             `${MATERIAL_NAME[intBase]} → ${MATERIAL_NAME[intTgt]}`);
+    finalInt = intTgt;
+  } else {
+    finalInt = (type === "house")
+      ? (document.querySelector('input[name="roof"]:checked').value === "lom"
+           ? "osb" : "vagBC")
+      : "osb";
+  }
 }
 
 /* --- 8.4.2. Наружная отделка --- */
@@ -820,13 +981,16 @@ if (selOutRep.value !== "none") {
       : "vagBC";
 
   const codeMapOut = {
-    imitBC_ext:"imitB", imitA_ext:"imitA",
-    block_ext:"block", osb_extA:"vagA", vag_extA:"vagA"
-  };
+  vag_ext:"vagBC",                     // ← базовая B-C, замены нет
+  imitBC_ext:"imitB", imitA_ext:"imitA",
+  block_ext:"block", osb_extA:"vagA", vag_extA:"vagA"
+};
   const extTgt   = codeMapOut[selOutRep.value] || "vagA";
   const priceOut = (REPLACEMENT_PRICES[extBase] || {})[extTgt] || 0;
 
-  const areaOut  = IMIT.has(extTgt) ? round3(area) : area; // то же правило
+  const extH     = getWallHeight(type, roof, true);
+const areaOut  = IMIT.has(extTgt) ? round3(wallArea(w, l, extH))
+                                  : wallArea(w, l, extH);
   addExtra(priceOut * areaOut,
            `${MATERIAL_NAME[extBase]} → ${MATERIAL_NAME[extTgt]}`);
 
@@ -861,15 +1025,18 @@ pkg.push("– Каркас: брус 50×100 мм");
 pkg.push(`– Наружная отделка: ${MATERIAL_NAME[finalExt]}`);
 
 // 2) Внутренняя отделка
-if (type !== "hoblok") {
+if (finalInt) {                               // покажем, только если что-то выбрано
   pkg.push(`– Внутренняя отделка: ${MATERIAL_NAME[finalInt]}`);
 }
+
 
 // 3) Утепление
 if (type !== "hoblok") {
   const label = (selInsul.value === "none")
-    ? "Мин. вата 100 мм + ВВИ"          // базовый слой
-    : getLabel(selInsul.selectedOptions[0]);
+  ? (type === "bytovka"
+        ? "Мин. вата 50 мм + ветро-влагоизоляция"
+        : "Мин. вата 100 мм + ветро-влагоизоляция")
+  : getLabel(selInsul.selectedOptions[0]);
   pkg.push(`– Утепление: ${label}`);
 }
 
@@ -885,10 +1052,11 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
   if (size && (kind === "pvcWin" || kind === "woodWin")) hasUserWindow = true;
 });
 
-if (!hasUserWindow) {                         // и здесь новое имя
+if (!hasUserWindow) {
   if (type === "house") pkg.push("– Окна: 3 × деревянные 80×80 см");
-  else                   pkg.push("– Окно: деревянное 60×90 см (1 шт)");
+  else                  pkg.push("– Окно: деревянное 60×90 см (1 шт)");
 }
+
 // 5) Базовые двери
 if (type === "house") {
   // у дома есть центральная перегородка → нужно 2 двери
@@ -898,7 +1066,7 @@ if (type === "house") {
 }
 
 // 6) Перегородка по центру (база для дома)
-if (type === "house") pkg.push("– Перегородка: по центру дома, входит в базу");
+if (type === "house") pkg.push("– Перегородка: по центру дома");
 
 // 7) Доп-элементы пользователя
 if (vw > 0 && vd > 0) pkg.push(`– Веранда: ${vw}×${vd} м`);
@@ -915,24 +1083,42 @@ if (selPile.value) {
 
 /* --- Окна / двери пользователя --- */
 windowsContainer.querySelectorAll(".window-row").forEach(row => {
-  const kind = row.querySelector(".win-type").value;
+  const kind = row.querySelector(".win-type").value;   // pvcWin | woodWin | pvcDoor | woodDoor | metalDoor
   const size = row.querySelector(".win-size").value;
   const qty  = +row.querySelector(".win-qty").value || 1;
   if (!size) return;
 
+  // Заголовок строки
   const textMap = {
-    pvcWin:  "Окно ПВХ",
-    pvcDoor: "Дверь ПВХ",
-    woodWin: "Окно деревянное",
-    woodDoor:"Дверь деревянная"
+    pvcWin:   "Окно ПВХ",
+    pvcDoor:  "Дверь ПВХ",
+    woodWin:  "Окно деревянное",
+    woodDoor: "Дверь деревянная",
+    metalDoor:"Дверь металлическая"
   };
   const title = textMap[kind] || "Окно/дверь";
-  const nice  = (kind === "woodDoor")
-      ? { std:"обычная", hinge:"распашная", hingeWarm:"распашная утеплённая" }[size]
-      : size;
+
+  // «Красивые» подписи для специальных размеров / кодов
+  const NICE_WOOD  = {
+    std:       "обычная",
+    hinge:     "распашная",
+    hingeWarm: "распашная утеплённая",
+    filen:     "филенчатая"
+  };
+  const NICE_METAL = {
+    rf:        "РФ",
+    rfThermo:  "РФ (термо)",
+    thermoLux: "Термо Люкс"
+  };
+
+  const nice =
+        (kind === "woodDoor")  ? (NICE_WOOD[size]  || size) :
+        (kind === "metalDoor") ? (NICE_METAL[size] || size) :
+                                 size;
 
   pkg.push(`– ${title} ${nice} (${qty} шт)`);
 });
+
 
 /* ──────── НОВЫЙ БЛОК: материал пола ──────── */
 if (chkFloor.checked) {
@@ -957,13 +1143,20 @@ if (type === "house") {
 // — добавляем все пункты в основной массив —
 pkg.forEach(l => lines.push(l + "  "));
 
-/* ─── Блок «Стоимость» ──────────────────────────────────────────── */
+/* ─── Блок «Стоимость» ───────────────────────────────────────── */
 lines.push(
   ``,
-  `💰 *Стоимость:*`,
-  `– Базовая: ${formatPrice(basePrice)} ₽  `,
-  `– Доставка: ${formatPrice(del)} ₽  `
+  `💰 *Стоимость:*`
 );
+
+lines.push(`– Базовая: ${formatPrice(basePrice)} ₽  `);
+
+if (hasRoute) {
+  lines.push(`– Доставка: ${formatPrice(del)} ₽  `);
+} else {
+  lines.push(`– Доставка: от ${formatPrice(del)} ₽  `);
+}
+
 if (extras > 0) {
   lines.push(`– Дополнительно: ${formatPrice(extras)} ₽  `);
   lines.push(...linesExtra.map(l => ` ${l}`));
@@ -986,7 +1179,7 @@ lines.push(
   `🎁 *Подарки:*`,
   `– Фундамент из блоков  `,
   `– Сборка за 1 день  `,
-  `– Обработка антисептиком  `,
+  `– Обработка полозьев антисептиком  `,
   ``,
   `🕒 *Срок изготовления:* 3–7 дней  `,
   `💳 *Без предоплаты — оплата по факту*`,
@@ -1007,13 +1200,17 @@ async function getKm(address){
     const obj   = res.geoObjects.get(0);
     if(!obj){ alert("Адрес не найден"); return null; }
     const coords= obj.geometry.getCoordinates();
-    const route = await ymaps.route([[55.751244,37.618423], coords]);
+    const route = await ymaps.route(
+  [[55.751244, 37.618423], coords],
+  { avoidTolls: true }         // ⚑ исключаем платные дороги
+);
     const kmRaw = route.getLength() / 1000;   // то, что вернул Яндекс
     const km    = Math.max(0, kmRaw - 30);    // отнимаем 30 км, но не меньше нуля
-    if (km > 280) {            // дальше 280 км не возим
-    alert("Доставка максимум 250 КМ от МКАД");
-    return null;             // вернём null — вызывающий код увидит и прервётся
-    }
+    if (km > MAX_KM) {         // дальше 250 км не возим
+    alert(`Доставка максимум ${MAX_KM} км от МКАД`);
+    return null;
+}
+
 
     map.geoObjects.removeAll();
     map.geoObjects.add(route);
@@ -1039,4 +1236,3 @@ function clearDelivery() {
   inpAddr.value = "";
   map.geoObjects.removeAll();
 }
-
