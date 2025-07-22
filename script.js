@@ -324,7 +324,13 @@ const FINISH_PROFILES = {
       ["osb_extA",   "Вагонка A (500 ₽/м²)"]
     ]
   },
+  
 };
+
+// alias для двускатной крыши бытовки и хозблока
+FINISH_PROFILES.bytovka_gable = FINISH_PROFILES.bytovka_lom;
+FINISH_PROFILES.hoblok_gable  = FINISH_PROFILES.hoblok_lom;
+
 
 /* ------------------------------------------------------------------
    3. Получаем DOM-элементы
@@ -476,6 +482,10 @@ function updateFinishSelects(type, roof) {
     opt.textContent = label;
     selOutRep.appendChild(opt);
   });
+
+  // **Возвращаем default, если нет опций**
+  if (inner.length === 0) selInRep.value  = "none";
+  if (outer.length === 0) selOutRep.value = "none";
 
   // если вариантов внутренней отделки нет — прячем label
   selInRep.closest("label").style.display =
