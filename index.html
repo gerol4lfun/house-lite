@@ -32,7 +32,7 @@
   <!-- Калькулятор (скрыт пока не войдём) -->
 <div id="calc-container" class="hidden">
   <!-- Кнопка выхода -->
-  <button id="btnLogout" class="logout-btn" onclick="logout()">Выйти</button>
+  <button id="btnLogout" class="logout" onclick="logout()">Выйти</button>
 
   <div class="container">
     <!-- остальные блоки калькулятора -->
@@ -217,7 +217,7 @@ type="button">
         <button type="button" id="btnAddWindow">Добавить окно / дверь</button>
         <label style="display:block; margin-top:10px;">
   <input type="checkbox" id="chkRamp">
-  Пандус под самонаборную дверь (2 000 ₽)
+  Пандус (2 000 ₽)
 </label>
         <div id="windowsContainer"></div>
         <template id="tmplWindowRow">
@@ -230,6 +230,7 @@ type="button">
              <option value="woodWin">Окно деревянное</option>
              <option value="pvcDoor">Дверь ПВХ</option>
              <option value="woodDoor">Дверь деревянная</option>
+             <option value="metalDoor">Дверь металлическая</option>
            </select>
 
             <select class="win-cam">
