@@ -760,11 +760,18 @@ if (addr) {                                  // если адрес введён
   /* ===== 8.3. Доп. опции ===== */
   let extras = 0, linesExtra = [];
 
-  // универсальная функция
+    // универсальная функция — собираем в map
+  const extraMap = {};
   function addExtra(sum, label){
     if(!sum || sum<=0) return;
+    // добавляем к общей сумме
     extras += sum;
-    linesExtra.push(`▪ ${label}: ${formatPrice(sum)} ₽`);
+    // накапливаем по ярлыку
+    if (extraMap[label]) {
+      extraMap[label] += sum;
+    } else {
+      extraMap[label] = sum;
+    }
   }
 
   /* --- 1. Утепление (если > базового) --- */
@@ -1121,6 +1128,13 @@ if (hasRoute) {
 } else {
   lines.push(`– Доставка: от ${formatPrice(del)} ₽  `);
 }
+
+  linesExtra = Object.entries(extraMap).map(([label, sum]) => {
+  // убираем «(1 шт)» из лейбла и вычисляем count
+  const cnt = (label.match(/\((\d+) шт\)/)?.[1] || 1);
+  const cleanLabel = label.replace(/\s*\(\d+ шт\)/, "");
+  return `▪ ${cleanLabel} (${cnt} шт): ${formatPrice(sum)} ₽`;
+});
 
 if (extras > 0) {
   lines.push(`– Дополнительно: ${formatPrice(extras)} ₽  `);
