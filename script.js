@@ -672,7 +672,7 @@ function addWindowRow () {
 
 // Человекочитаемые названия материалов
 const MATERIAL_NAME = {
-  osb:"ОСБ-3 плита",
+  osb:"ОСБ плита",
   vagBC:"Вагонка B–C",
   vagA:"Вагонка A",
   imitB:"Имитация бруса B–C",
