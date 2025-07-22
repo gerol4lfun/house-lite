@@ -95,41 +95,6 @@ function getHoblokBasePrice(w, l){
   const key = `${w}x${l === 2.5 ? 3 : l}`;
   return CONFIG.hoblok.basePrice[key] || 0;   // просто «голый» хозблок
 }
-/* ─── Доска: длины и цены ───────────────────────────────────────── */
-const BOARD_LEN  = { imitA:[6], imitB:[5,6], block:[6], floor:[6] };
-//     ₽ за ОДНУ доску нужной длины (примерные цены, правьте сами)
-const BOARD_PRICE = { imitA:540, imitB:420, block:650, floor:580 };
-
-/* Быстрая подборка: сколько досок (pcs) и отход (waste) под длину L  */
-function boardsFor(L, lens){
-  let best=null;
-  for(const len of lens){
-    const pcs=Math.ceil(L/len);
-    const waste=pcs*len-L;
-    if(!best || waste<best.waste) best={pcs,len,waste};
-  }
-  return best;   // {pcs, len, waste}
-}
-
-/* Считаем доски на ВСЕ стены + (опц.) потолок/пол  */
-function countBoards(w,l,h,code,withCeil=false){
-  const lens=BOARD_LEN[code];             // какие длины есть
-  if(!lens) return 0;                     // на всякий случай
-  let pieces=0;
-
-  // 4 стены
-  [[w,h],[l,h],[w,h],[l,h]].forEach(([L,H])=>{
-    const b=boardsFor(L,lens);
-    pieces+=b.pcs*H;
-  });
-
-  // потолок или пол (для шпунт-пола)
-  if(withCeil){
-    const b=boardsFor(w,lens);
-    pieces+=b.pcs*l;
-  }
-  return pieces;
-}
 
 // Внутренняя отделка
 const INREP = {
@@ -844,7 +809,7 @@ const diff = INSUL[selInsul.value] - baseInsulPrice;
   }
 
   /* --- 9. Пандус --- */
-if (chkRamp.checked) addExtra(RAMP, "Пандус под самонаборную дверь");
+if (chkRamp.checked) addExtra(RAMP, "Пандус");
 
   /* --- 9. Окна / двери (все варианты) --- */
 windowsContainer.querySelectorAll(".window-row").forEach(row => {
@@ -920,16 +885,6 @@ if (type === "hoblok") {
 
   // шаг 2 — замена ОСБ → выбранный материал
   const priceIn = (REPLACEMENT_PRICES.osb || {})[intTgt] || 0;
-
-  // ▶ если выбран «imitA / imitB / block» → считаем по доскам
-if(["imitA","imitB","block"].includes(intTgt)){
-  const h = getWallHeight(type, roof, false);
-  const pcs = countBoards(w,l,h,intTgt,false);        // стены+потолок
-  const extra = pcs * BOARD_PRICE[intTgt];
-  addExtra(extra, `${MATERIAL_NAME[intBase]} → ${MATERIAL_NAME[intTgt]} (${pcs} шт)`); 
-  finalInt = intTgt;
-  continueCalc = false;          // чтобы старый расчёт ниже не сработал
-}
 
   const h  = getWallHeight(type, "lom", false);   // всегда односкат
   const S  = wallArea(w, l, h) + w * l;           // стены + потолок
