@@ -295,7 +295,8 @@ const FINISH_PROFILES = {
       ["osb_vag",  "ОСБ → вагонка B–C (120 ₽/м²)"],
       ["osb_imit", "ОСБ → имитация бруса (350 ₽/м²)"],
       ["osb_vagA", "ОСБ → вагонка A (500 ₽/м²)"],
-      ["osb_block","ОСБ → блок-хаус (1120 ₽/м²)"]
+      ["osb_block","ОСБ → блок-хаус (1120 ₽/м²)"],
+      ["profGalv", "Профнастил оцинкованный (750 ₽/м²)"]
     ],
     outer: [
       ["none",      "— без изменений —"],
@@ -303,7 +304,8 @@ const FINISH_PROFILES = {
       ["imitBC_ext","Имитация бруса B–C (250 ₽/м²)"],
       ["imitA_ext", "Имитация бруса A (400 ₽/м²)"],
       ["block_ext", "Блок-хаус (1000 ₽/м²)"],
-      ["osb_extA",  "Вагонка A (500 ₽/м²)"]
+      ["osb_extA",  "Вагонка A (500 ₽/м²)"],
+      ["profGalv", "Профнастил оцинкованный (750 ₽/м²)"]
     ]
   },
     hoblok_lom: {
@@ -677,12 +679,14 @@ const MATERIAL_NAME = {
   vagA:"Вагонка A",
   imitB:"Имитация бруса B–C",
   imitA:"Имитация бруса A",
-  block:"Блок-хаус"
+  block:"Блок-хаус",
+  profGalv: "Профнастил оцинкованный"
+
 };
 // Прямые цены замены (₽/м²)
 const REPLACEMENT_PRICES = {
   osb:   { vagBC:120, vagA:500, imitB:350, imitA:520, block:1120 },
-  vagBC: { vagA:380, imitB:250, imitA:400, block:1000 },
+  vagBC: { vagA:380, imitB:250, imitA:400, block:1000, profGalv:750 },
   imitB: { imitA:750, block:600, vagA:150 }
 };
 
@@ -969,7 +973,7 @@ if (selOutRep.value !== "none") {
   const codeMapOut = {
   vag_ext:"vagBC",                     // ← базовая B-C, замены нет
   imitBC_ext:"imitB", imitA_ext:"imitA",
-  block_ext:"block", osb_extA:"vagA", vag_extA:"vagA"
+  block_ext:"block", osb_extA:"vagA", vag_extA:"vagA",profGalv:  "profGalv"
 };
   const extTgt   = codeMapOut[selOutRep.value] || "vagA";
   const priceOut = (REPLACEMENT_PRICES[extBase] || {})[extTgt] || 0;
