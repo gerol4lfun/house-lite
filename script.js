@@ -738,7 +738,21 @@ if (addr) {                                  // если адрес введён
   const roof = document.querySelector('input[name="roof"]:checked').value;
   basePrice = Math.ceil(area * RATE[roof].base / 10) * 10;
 
-  /*  вот тут был расчёт доставки  */
+    // расчёт доставки для домов
+  if (hasRoute) {
+    // тариф за км по размеру дома
+    const key   = `${w}x${l}`;
+    const rate  = CONFIG.house.deliv[key] || 0;
+    let cost    = rate * km;
+    // минималка 7000 ₽
+    if (cost < minDeliv) cost = minDeliv;
+    // округляем до 50 ₽
+    del = Math.ceil(cost / 50) * 50;
+  } else {
+    // без маршрута — ставим от
+    del = minDeliv;
+  }
+
 
 } else {                     // хозблок или бытовка
   const cfg = CONFIG[type];
