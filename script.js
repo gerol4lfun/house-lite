@@ -902,8 +902,9 @@ if (type === "hoblok") {
     finalInt = null;           // ничего не выводим в «Комплектацию»
     /* ── 2. Только ОСБ-3 ───────────────────────── */
   } else if (selInRep.value === "osb_only") {
-  // вариант  «чистая ОСБ-3 без дальнейшей отделки»
-  extras += getOsbArea(w, l) * OSB_PLAIN;
+  // «чистая ОСБ-3»
+  const cost = getOsbArea(w, l) * OSB_PLAIN;
+  addExtra(cost, "ОСБ плита");   // ✦ теперь фиксируем подпись
   finalInt = "osb";
 
 } else {  // osb_vag, osb_imit, osb_vagA, osb_block
