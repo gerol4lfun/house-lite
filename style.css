@@ -169,9 +169,14 @@ select {
 .hidden{display:none}
 /* компактная кнопка logout */
 .logout{
-  position:absolute;   /* «прилипает» к углу контейнера-калькулятора */
-  top:6px;
-  right:8px;
+  position:absolute;
+  top:6px; right:8px;
+  display:inline-block;
+  width:auto;              /* ↙️ перезаписываем ширину */
+  padding:4px 10px;
+  background:#6c757d; color:#fff;
+  border:none; border-radius:4px;
+  cursor:pointer; font-size:14px;
 
   display:inline-block; /* перебивает display:block из общего правила */
   width:auto;           /* перебивает width:100% */
@@ -198,3 +203,12 @@ select {
 
 .auth-container input[type="text"]{ margin:0 0 8px 0; }
 .auth-container input[type="password"]{ margin:0 0 16px 0; }
+.addr-extra { color:#666; margin-top:4px; font-size:12px; }
+/* --- аккуратная строка "Дистанция от базы" --- */
+.addr-extra {
+  margin: 6px 0 12px;      /* сверху и снизу чуть воздуха */
+  font-size: 14px;
+  line-height: 1.4;
+}
+.addr-extra small { color:#444; }
+
