@@ -85,6 +85,7 @@ const DELIV   = {
   "9x8":300
 };
 const MAX_KM = 250;      // лимит: 250 км от МКАД
+const DEPOT = [55.621800, 37.441432];   // точка отгрузки
 
 // Опции по площади
 const INSUL   = { roll100:550, min150:2000, rock100:1000, basalt150:4000 };
@@ -295,8 +296,7 @@ const FINISH_PROFILES = {
       ["osb_vag",  "ОСБ → вагонка B–C (120 ₽/м²)"],
       ["osb_imit", "ОСБ → имитация бруса (350 ₽/м²)"],
       ["osb_vagA", "ОСБ → вагонка A (500 ₽/м²)"],
-      ["osb_block","ОСБ → блок-хаус (1120 ₽/м²)"],
-      ["profGalv", "Профнастил оцинкованный (750 ₽/м²)"]
+      ["osb_block","ОСБ → блок-хаус (1120 ₽/м²)"]
     ],
     outer: [
       ["none",      "— без изменений —"],
@@ -375,7 +375,7 @@ const btnClearAddr = document.getElementById("btnClearAddr");
 let map;
 ymaps.ready(() => {
   map = new ymaps.Map("map", {
-    center:[55.751244,37.618423],
+    center:DEPOT,
     zoom:9
   });
   // ─── Подсказки адреса, как в тепличном калькуляторе ───────────────────────────
@@ -1193,31 +1193,40 @@ out.innerHTML = lines.join("\n");
 ------------------------------------------------------------------ */
 async function getKm(address){
   try{
+    // 1. Ищем координаты введённого адреса
     const res   = await ymaps.geocode(address,{results:1});
     const obj   = res.geoObjects.get(0);
     if(!obj){ alert("Адрес не найден"); return null; }
-    const coords= obj.geometry.getCoordinates();
-    const route = await ymaps.route(
-  [[55.751244, 37.618423], coords],
-  { avoidTolls: true }         // ⚑ исключаем платные дороги
-);
-    const kmRaw = route.getLength() / 1000;   // то, что вернул Яндекс
-    const km    = Math.max(0, kmRaw - 30);    // отнимаем 30 км, но не меньше нуля
-    if (km > MAX_KM) {         // дальше 250 км не возим
-    alert(`Доставка максимум ${MAX_KM} км от МКАД`);
-    return null;
-}
 
+    const coords = obj.geometry.getCoordinates();   // точка клиента
 
+    // 2. Строим маршрут «база → клиент»
+    const route = await ymaps.route([DEPOT, coords], { avoidTolls:true });
+
+    // 3. Длина маршрута в км
+    const km = route.getLength() / 1000;
+
+    // 4. Показываем под полем адреса
+    document.getElementById('kmInfo').textContent =
+          km.toFixed(1).replace('.', ',') + ' км';
+
+    // 5. Проверяем лимит 250 км
+    if (km > MAX_KM){
+      alert(`Доставка максимум ${MAX_KM} км от МКАД`);
+      return null;
+    }
+
+    // 6. Рисуем маршрут на карте
     map.geoObjects.removeAll();
     map.geoObjects.add(route);
-    return km;
+
+    return km;             // ← вернули число для расчётов
   }catch(e){
     alert("Ошибка Яндекс.Карт (см. консоль)");
     console.error(e);
     return null;
   }
-}  
+}
   // Сброс всех фильтров и результата
 function resetFilters() {
   selType.value = "house";
@@ -1225,6 +1234,7 @@ function resetFilters() {
   inpAddr.value = "";
   out.textContent = "";
   map.geoObjects.removeAll();
+  document.getElementById('kmInfo').textContent = '—'; 
   windowsContainer.innerHTML = "";
 }
 
@@ -1232,4 +1242,5 @@ function resetFilters() {
 function clearDelivery() {
   inpAddr.value = "";
   map.geoObjects.removeAll();
+  document.getElementById('kmInfo').textContent = '—';
 }
