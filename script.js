@@ -1213,7 +1213,7 @@ async function getKm(address){
           km.toFixed(1).replace('.', ',') + ' км';
     
      // делаем ссылку «открыть адрес на Яндекс.Картах»
-    const url = 'https://yandex.ru/maps/?mode=search&text='
+    const url = `https://yandex.ru/maps/?pt=${coords[1]},${coords[0]}&z=17`;
             + encodeURIComponent(address);
 
 document.getElementById('mapLink').href        = url;
