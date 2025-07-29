@@ -1129,7 +1129,7 @@ if (type === "house") {
     ? "– Высота помещения: от 2,1 м до 2,4 м"
     : "– Высота помещения: 2,4 м по всему периметру");
 } else {
-  pkg.push(`– Высота потолка: ${type === "bytovka" ? "2,10" : "2,10"} м`);
+  pkg.push(`– Высота потолка: ${type === "bytovka" ? "2,00" : "2,10"} м`);
 }
 
 // — добавляем все пункты в основной массив —
@@ -1211,6 +1211,18 @@ async function getKm(address){
     // 4. Показываем под полем адреса
     document.getElementById('kmInfo').textContent =
           km.toFixed(1).replace('.', ',') + ' км';
+    
+     // делаем ссылку «открыть адрес на Яндекс.Картах»
+    const url = 'https://yandex.ru/maps/?mode=search&text='
+            + encodeURIComponent(address);
+
+document.getElementById('mapLink').href        = url;
+document.getElementById('mapLink').textContent = address; // сам текст ссылки
+
+// показываем ссылку и разделитель
+document.getElementById('mapLink').style.display = '';
+document.getElementById('kmSep').style.display    = '';
+
 
     // 5. Проверяем лимит 250 км
     if (km > MAX_KM){
@@ -1245,4 +1257,8 @@ function clearDelivery() {
   inpAddr.value = "";
   map.geoObjects.removeAll();
   document.getElementById('kmInfo').textContent = '—';
+  document.getElementById('mapLink').style.display = 'none';
+  document.getElementById('kmSep').style.display   = 'none';
+  document.getElementById('mapLink').removeAttribute('href');
+
 }
