@@ -64,7 +64,7 @@ function getWallHeight(type, roof, ext = false){
     if (roof === "gable") return ext ? 2.8 : 2.5;   // двускатка
     return 2.55;                                    // ломаная
   }
-    if (type === "bytovka") return 2.0;   // бытовка
+    if (type === "bytovka") return 2.1;   // бытовка
   return 2.1;                           // хозблок
 }
 
@@ -1130,7 +1130,7 @@ if (type === "house") {
     ? "– Высота помещения: от 2,1 м до 2,4 м"
     : "– Высота помещения: 2,4 м по всему периметру");
 } else {
-  pkg.push(`– Высота потолка: ${type === "bytovka" ? "2,00" : "2,10"} м`);
+  pkg.push(`– Высота потолка: ${type === "bytovka" ? "2,10" : "2,10"} м`);
 }
 
 // — добавляем все пункты в основной массив —
