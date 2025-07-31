@@ -59,30 +59,27 @@ function formatPrice(n) {
 }
 
 /* --- высота стен и площадь стен -------------------------------- */
-function getWallHeight(type, roof, ext = false){
-  // 8) Высота помещения / потолка  ← ОБНОВЛЁННЫЙ БЛОК
-const extraHcm   = +inpExtraH.value || 0;   // берём надбавку из поля
-const addMeters  = (extraHcm / 100).toFixed(2).replace('.', ','); // «0,10»
-const baseHouse  = roof === "lom"
-                   ? "от 2,1 м до 2,4 м"
-                   : "2,4 м по всему периметру";
-const baseOther  = "2,10 м";
+function getWallHeight(type, roof, ext = false) {
+  // прибавка, введённая пользователем (см)
+  const extraHcm = +inpExtraH.value || 0;
+  const addM     = extraHcm / 100;              // переводим в метры
 
-if (type === "house") {
-  if (extraHcm) {
-    pkg.push(`– Высота помещения: ${baseHouse} + ${addMeters} м`);
+  // базовая высота (м)
+  let h;
+  if (type === "house") {
+    // у ломаной крыши внутри чуть ниже, снаружи – по стойке
+    h = (roof === "lom")
+        ? (ext ? 2.4 : 2.3)   // наружные стены 2 ,4 м, внутренние 2 ,3 м
+        : 2.4;                // двускатная – 2 ,4 м везде
   } else {
-    pkg.push(`– Высота помещения: ${baseHouse}`);
+    h = 2.1;                  // бытовка / хозблок
   }
-} else {                               // бытовка или хозблок
-  if (extraHcm) {
-    pkg.push(`– Высота потолка: ${baseOther.slice(0, -2)} + ${addMeters} м`);
-  } else {
-    pkg.push(`– Высота потолка: ${baseOther}`);
-  }
+
+  return +(h + addM).toFixed(2);  // итоговое число, например 2.30
 }
 
-}
+
+
 
 function wallArea(w, l, h){ return 2 * (w + l) * h; }  // 2*(W+L)*H
 
@@ -537,14 +534,31 @@ function handleTypeChange() {
   const roof = document.querySelector('input[name="roof"]:checked').value;
   updateFinishSelects(type, roof);
 
-  // 1) ширина / длина
-inpWidth.innerHTML =
-  cfg.widths.map(w => `<option>${w}</option>`).join("");
-inpWidth.value = cfg.widths[0];          // ← первая ширина по умолчанию
+  // ─── 1) ширина / длина ──────────────────────────────
+// 1. Запоминаем, что было выбрано до перерисовки
+const prevW = +inpWidth.value || null;
+const prevL = +inpLength.value || null;
 
-inpLength.innerHTML =
-  cfg.lengths.map(l => `<option>${l}</option>`).join("");
-inpLength.value = cfg.lengths[0];        // ← первая длина по умолчанию
+// 2. Перерисовываем список ширин
+inpWidth.innerHTML = cfg.widths.map(w => `<option>${w}</option>`).join("");
+
+// 3. Возвращаем старое значение, если оно есть
+if (prevW && cfg.widths.includes(prevW)) {
+  inpWidth.value = prevW;
+} else {
+  inpWidth.value = cfg.widths[0]; // резерв по-умолчанию
+}
+
+// 4. Перерисовываем список длин
+inpLength.innerHTML = cfg.lengths.map(l => `<option>${l}</option>`).join("");
+
+// 5. Возвращаем прежнюю длину, если возможно
+if (prevL && cfg.lengths.includes(prevL)) {
+  inpLength.value = prevL;
+} else {
+  inpLength.value = cfg.lengths[0];
+}
+
 
   // 2) показываем блок «Тип крыши» и меняем подписи
   roofContainer.style.display = "block";
