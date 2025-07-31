@@ -728,9 +728,9 @@ const REPLACEMENT_PRICES = {
 function pricePer10cm(w, l) {
   const area = w * l;           // площадь без учёта веранды
 
-  if (area <= 18) return 5000;      // до 18 м²
-  if (area <= 24) return 10000;     // 18–24 м²
-  if (area <= 48) return 13000;     // 24–48 м²
+  if (area <= 17) return 5000;      // до 17 м²
+  if (area <= 23) return 10000;     // 18–23 м²
+  if (area <= 47) return 13000;     // 24–47 м²
   return 16000;                     // свыше 48 м²
 }
 
