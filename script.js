@@ -1044,11 +1044,18 @@ const areaOut  = IMIT.has(extTgt) ? round3(wallArea(w, l, extH))
 }
 
   /* ===== 8.5. Итоговые строки КП ===== */
+  
+/* ─── Заголовок с учётом веранды ──────────────────────────────── */
+// если ввели оба размера – добавляем хвост  «+ веранда …×…»
+const verTitle = (vw > 0 && vd > 0) ? ` + веранда ${vw}×${vd}` : "";
+
+// итоговый заголовок КП
 const total    = basePrice + del + extras;
 const roofType = document.querySelector('input[name="roof"]:checked').value;
 const title    = (type === "house")
-  ? `Каркасный дом с ${roofType === "lom" ? "ломаной" : "двускатной"} крышей ${w}×${l} — под ключ`
-  : `${selType.options[selType.selectedIndex].text} ${w}×${l} — под ключ`;
+  ? `Каркасный дом с ${roofType === "lom" ? "ломаной" : "двускатной"} крышей ${w}×${l}${verTitle} — под ключ`
+  : `${selType.options[selType.selectedIndex].text} ${w}×${l}${verTitle} — под ключ`;
+
 
 /* ─── Заголовок + блок «Комплектация» ───────────────────────────── */
 const lines = [
