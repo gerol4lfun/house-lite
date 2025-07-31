@@ -584,7 +584,7 @@ function populatePileOptions () {
   const cnt  = getPileCount(type, w, l);
 
   // 👉  для домов (type==='house') Ø76 не показываем
-  const skip76 = (type === "house");          // все дома ≥ 6×4 м
+  const skip76 = (type === "house" && cnt > 12);       // все дома ≥ 6×4 м
 
   selPile.innerHTML = '<option value="">— без свай —</option>';
   Object.entries(PILES).forEach(([dim, price]) => {
