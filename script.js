@@ -63,7 +63,7 @@ function getWallHeight(type, roof, ext = false){
   // 8) Высота помещения / потолка  ← ОБНОВЛЁННЫЙ БЛОК
 const extraHcm   = +inpExtraH.value || 0;   // берём надбавку из поля
 const addMeters  = (extraHcm / 100).toFixed(2).replace('.', ','); // «0,10»
-const baseHouse  = roofType === "lom"
+const baseHouse  = roof === "lom"
                    ? "от 2,1 м до 2,4 м"
                    : "2,4 м по всему периметру";
 const baseOther  = "2,10 м";
@@ -95,10 +95,11 @@ function getLabel(opt) {
 
 // Базовые тарифы
 const RATE    = { lom:{ base:10450 }, gable:{ base:13750 } };
-const DELIV   = {
-  "6x4":180, "6x5":200, "6x6":200, "6x7":200,
-  "6x8":300, "6x9":300, "6x10":300, "8x8":300,
-  "9x8":300
+const DELIV = {
+  "6x4": 180,                 // 1-я группа
+  "6x5": 200, "6x6": 200, "6x7": 200,   // 2-я группа
+  "6x8": 300, "6x9": 300, "6x10": 300,  // 3-я группа
+  "8x8": 300, "9x8": 300                // большие
 };
 const MAX_KM = 250;      // лимит: 250 км от МКАД
 const DEPOT = [55.621800, 37.441432];   // точка отгрузки
@@ -756,61 +757,58 @@ async function calculate(){
   /* ===== 8.2. Базовая стоимость и доставка ===== */
   const area = w * l;
   // ── подготовка доставки ─────────────────────────────
-const veh = (w > 4 || l > 4) ? 2 : 1;        // 1 машина до 4×4, иначе 2
-let minDeliv = (type === "house")            // минималка «от …»
-              ? 7000                         // для дома
-              : CONFIG[type].delivery.min * veh; // 5 000×veh или 6 000×veh
+const veh = (w > 4 || l > 4) ? 2 : 1;      // 1 или 2 машины
 
-const addr     = inpAddr.value.trim();       // что набрал пользователь
-let   km       = null;                       // будет число или null
-let   hasRoute = false;                      // флаг «маршрут построен»
-if (addr) {                                  // если адрес введён
-  km = await getKm(addr);                    // пробуем построить
-  if (km === null) return;                   // getKm уже показал alert
+// 1. минимальная стоимость выезда
+const minDeliv = (type === "house")
+  ? 7000                      // для домов
+  : CONFIG[type].delivery.min; // 5000 (хозблок) или 6000 (бытовка)
+
+del = 0;                  // сюда положим итог доставки
+let hasRoute = false;         // построен ли маршрут
+let km = 0;                   // километраж
+
+// 2. если адрес есть — пытаемся построить маршрут
+const address = inpAddr.value.trim();
+if (address) {
+  km = await getKm(address);        // вернёт число или null
+  if (km === null) return;          // getKm уже показал alert
   hasRoute = true;
 }
 
-  // ─── если адрес не введён — берём минималку ──────────────
-  if (!hasRoute) del = minDeliv;
+// 3. если маршрута нет (пустой адрес) — доставка = минималка
+if (!hasRoute) {
+  del = minDeliv;
+} else {
+  // 3.1 выбираем тариф за 1 км
+  let rate;
+  if (type === "house") {                 // дом
+    const key = `${w}x${l}`;              // например "6x5"
+    rate = DELIV[key] || 300;             // 180 / 200 / 300; 300 — «запасной»
+  } else {                                // хозблок или бытовка
+    rate = (veh === 2)
+      ? CONFIG[type].delivery.perKm2      // 140 / 180 р км
+      : CONFIG[type].delivery.perKm1;     // 80 / 100 р км
+  }
 
+  // 3.2 считаем стоимость и применяем порог
+  let cost = rate * km;
+  if (cost < minDeliv) cost = minDeliv;
 
-  // ► НАЦЕНКА, чтобы из голого хозблока «дотянуться» до цены бытовки с ОСБ
-                        // голый хозблок
+  // 3.3 округляем до 50 ₽
+  del = Math.ceil(cost / 50) * 50;
+}
 
-  if (type === "house") {
+// ───── БАЗОВАЯ СТОИМОСТЬ ─────
+if (type === 'house') {                     // дом
   const roof = document.querySelector('input[name="roof"]:checked').value;
   basePrice = Math.ceil(area * RATE[roof].base / 10) * 10;
 
-    // расчёт доставки для домов
-  if (hasRoute) {
-    // тариф за км по размеру дома
-    const key   = `${w}x${l}`;
-    const rate  = CONFIG.house.deliv[key] || 0;
-    let cost    = rate * km;
-    // минималка 7000 ₽
-    if (cost < minDeliv) cost = minDeliv;
-    // округляем до 50 ₽
-    del = Math.ceil(cost / 50) * 50;
-  } else {
-    // без маршрута — ставим от
-    del = minDeliv;
-  }
+} else if (type === 'hoblok') {             // хозблок
+  basePrice = getHoblokBasePrice(wPrice, lPrice);
 
-
-} else {                     // хозблок или бытовка
-  const cfg = CONFIG[type];
-  basePrice = (type === "hoblok")
-                ? getHoblokBasePrice(wPrice, lPrice)
-                : (cfg.basePrice[`${wPrice}x${lPrice}`] || 0);
-
-  if (hasRoute) {                           // ← добавили условие
-    const rate = (veh === 2) ? cfg.delivery.perKm2 : cfg.delivery.perKm1;
-    let cost   = rate * km;
-    const min  = cfg.delivery.min * veh;
-    if (cost < min) cost = min;
-    del = Math.ceil(cost / 50) * 50;
-  }
-  // если адрес пуст, del уже равен minDeliv (см. пункт 1)
+} else {                                    // бытовка
+  basePrice = CONFIG.bytovka.basePrice[`${wPrice}x${lPrice}`] || 0;
 }
 
 
