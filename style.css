@@ -212,3 +212,15 @@ select {
 }
 .addr-extra small { color:#444; }
 
+.opt-box{
+  border:1px solid #d7d7d7;
+  border-radius:4px;
+  padding:8px;
+  margin:0 0 12px;
+  background:#fafafa;
+}
+.opt-title{
+  font-weight:600;
+  margin:0 0 6px;
+}
+.w100{ width:100%; box-sizing:border-box; }
