@@ -676,7 +676,7 @@ function addWindowRow () {
 
 // Человекочитаемые названия материалов
 const MATERIAL_NAME = {
-  osb:"ОСБ плита (прочность и влагостойкость)",
+  osb:"ОСБ влагостойкая",
   vagBC:"Вагонка B (без сколов и синевы)",
   vagA:"Вагонка A (отборная)",
   imitB:"Имитация бруса B (без сколов и синевы)",
@@ -1228,16 +1228,16 @@ async function getKm(address){
     document.getElementById('kmInfo').textContent =
           km.toFixed(1).replace('.', ',') + ' км';
     
-     // делаем ссылку «открыть адрес на Яндекс.Картах»
-    const url = `https://yandex.ru/maps/?pt=${coords[1]},${coords[0]}&z=17`;
-            + encodeURIComponent(address);
+     // ссылка: маршрут «от моего местоположения → к клиенту»
+const [lon, lat] = coords;                        // порядок: долгота, широта
+const url = `https://yandex.ru/maps/?rtext=~${lon},${lat}&rtt=auto`;
 
-document.getElementById('mapLink').href        = url;
-document.getElementById('mapLink').textContent = address; // сам текст ссылки
+const link = document.getElementById('mapLink');
+link.href        = url;                           // куда кликнёт водитель
+link.textContent = address;                       // что он увидит
+link.style.display = '';
+document.getElementById('kmSep').style.display = '';
 
-// показываем ссылку и разделитель
-document.getElementById('mapLink').style.display = '';
-document.getElementById('kmSep').style.display    = '';
 
 
     // 5. Проверяем лимит 250 км
