@@ -60,12 +60,28 @@ function formatPrice(n) {
 
 /* --- высота стен и площадь стен -------------------------------- */
 function getWallHeight(type, roof, ext = false){
-  if (type === "house") {
-    if (roof === "gable") return ext ? 2.8 : 2.5;   // двускатка
-    return 2.55;                                    // ломаная
+  // 8) Высота помещения / потолка  ← ОБНОВЛЁННЫЙ БЛОК
+const extraHcm   = +inpExtraH.value || 0;   // берём надбавку из поля
+const addMeters  = (extraHcm / 100).toFixed(2).replace('.', ','); // «0,10»
+const baseHouse  = roofType === "lom"
+                   ? "от 2,1 м до 2,4 м"
+                   : "2,4 м по всему периметру";
+const baseOther  = "2,10 м";
+
+if (type === "house") {
+  if (extraHcm) {
+    pkg.push(`– Высота помещения: ${baseHouse} + ${addMeters} м`);
+  } else {
+    pkg.push(`– Высота помещения: ${baseHouse}`);
   }
-    if (type === "bytovka") return 2.1;   // бытовка
-  return 2.1;                           // хозблок
+} else {                               // бытовка или хозблок
+  if (extraHcm) {
+    pkg.push(`– Высота потолка: ${baseOther.slice(0, -2)} + ${addMeters} м`);
+  } else {
+    pkg.push(`– Высота потолка: ${baseOther}`);
+  }
+}
+
 }
 
 function wallArea(w, l, h){ return 2 * (w + l) * h; }  // 2*(W+L)*H
@@ -131,6 +147,19 @@ const OUTREP = {
 OUTREP['none'] = 500;  // базовая вагонка B–C
 
 const FLOOR   = { floor:1000, mouse:400 };
+// ▶ цены чистового пола (₽/м²)
+const FLOOR_MAT = {
+  plain: 0,
+  osb: 500,
+  board50x150: 1000,
+  planed35x140: 1400
+};
+const FLOOR_CAPT = {
+  plain: "Пол: обрезная доска 25×150 мм",
+  osb:   "Пол: ОСБ влагостойкий",
+  board50x150: "Пол: чистовой 50×150 мм",
+  planed35x140: "Пол: строганая 35×140 мм"
+};
 const RAMP = 2000; // пандус
 
 // Перегородки
@@ -351,7 +380,8 @@ const selInsul     = document.getElementById("selInsul");
 const selRoofMat   = document.getElementById("selRoofMat");
 const selInRep     = document.getElementById("selInRep");
 const selOutRep    = document.getElementById("selOutRep");
-const chkFloor     = document.getElementById("chkFloor");
+const selFloor   = document.getElementById("selFloor");   // выпадающий список пола
+const inpExtraH  = document.getElementById("inpExtraH");  // поле высоты
 const chkMouse     = document.getElementById("chkMouse");
 
 const selPart      = document.getElementById("selPart");
@@ -541,8 +571,9 @@ inpLength.value = cfg.lengths[0];        // ← первая длина по у�
 // уже затем – то, что добавляем
 // -------------------------
 
-// сбрасываем галочки пола / мыши / пандуса
-chkFloor.checked = chkMouse.checked = chkRamp.checked = false;
+selFloor.value = "plain";        // базовый пол
+chkMouse.checked = chkRamp.checked = false;
+
 
 // если выбран хозблок – прячем утепление
 if (selType.value === 'hoblok') {
@@ -692,6 +723,12 @@ const REPLACEMENT_PRICES = {
   imitB: { imitA:750, block:600, vagA:150 }
 };
 
+function pricePer10cm(w, l) {
+  if (w <= 6 && l <= 3) return 10000;   // до 6×3
+  if (w <= 6 && l <= 6) return 20000;   // до 6×6
+  return 30000;                         // всё что больше
+}
+
 
 /* ------------------------------------------------------------------
    8. calculate — основная функция расчёта
@@ -826,9 +863,23 @@ const diff = INSUL[selInsul.value] - baseInsulPrice;
     addExtra(VERANDA[verRoof] * verArea, `Веранда ${vw}×${vd} м`);
   }
 
-  /* --- 5. Шпунт-пол и «анти-мышь» --- */
-  if (chkFloor.checked) addExtra(FLOOR.floor * area, "Шпунт-пол");
-  if (chkMouse.checked) addExtra(FLOOR.mouse * area, "Сетка «анти-мышь»");
+  /* --- 5. Шпунт-пол, высота и «анти-мышь» --- */
+const floorCode  = document.getElementById('selFloor').value;
+const floorExtra = FLOOR_MAT[floorCode] * area;
+if (floorExtra) addExtra(floorExtra, FLOOR_CAPT[floorCode]);
+
+// ▸ увеличение высоты
+const extraH = +inpExtraH.value || 0;        // введено в см
+let heightNote = "";                         // <— добавили
+if (extraH > 0) {
+  const steps = Math.ceil(extraH / 10);
+  const addH  = steps * pricePer10cm(w, l);
+  addExtra(addH, `Высота +${extraH} см`);
+  heightNote = `– Высота увеличена на ${extraH} см`;   // <— запомнили
+}
+
+if (chkMouse.checked) addExtra(FLOOR.mouse * area, "Сетка «анти-мышь»");
+
 
   /* --- 6. Перегородки --- */
   const partType = selPart.value;
@@ -1011,6 +1062,8 @@ const lines = [
 /* ===== 8.6. Комплектация (финальное состояние) ===== */
 const pkg = [];
 
+if (heightNote) pkg.push(heightNote);
+
 // 0) Каркас (фиксированная запись)
 pkg.push("– Каркас: брус 50×100 мм (1 сорт, хвойный)");
 
@@ -1114,24 +1167,26 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
 
 
 /* ──────── НОВЫЙ БЛОК: материал пола ──────── */
-if (chkFloor.checked) {
-  // выбрана опция «Шпунт-пол»
-  pkg.push("– Пол: шпунтованная доска 22 мм");
-} else {
-  // базовая комплектация
-  pkg.push("– Пол: обрезная доска 25×150 (1 сорт, хвойный)  мм");
-}
+pkg.push("– " + FLOOR_CAPT[floorCode]);
 /* ──────────────────────────────────────────── */
 
 
-// 8) Высота помещения
+// 8) Высота помещения / потолка (учитываем extraH)
+const extraHcm = +inpExtraH.value || 0;               // прибавка в см
+const addM     = (extraHcm / 100).toFixed(2).replace('.', ','); // «0,10»
+
+let heightLine;
 if (type === "house") {
-  pkg.push(roofType === "lom"
-    ? "– Высота помещения: от 2,1 м до 2,4 м"
-    : "– Высота помещения: 2,4 м по всему периметру");
-} else {
-  pkg.push(`– Высота потолка: ${type === "bytovka" ? "2,10" : "2,10"} м`);
+  const base = roofType === "lom"
+    ? "от 2,1 м до 2,4 м"
+    : "2,4 м по всему периметру";
+  heightLine = extraHcm ? `${base} + ${addM} м` : base;
+} else { // бытовка / хозблок
+  const base = "2,10 м";
+  heightLine = extraHcm ? `${base} + ${addM} м` : base;
 }
+pkg.push(`– Высота ${type==="house"?"помещения":"потолка"}: ${heightLine}`);
+
 
 // — добавляем все пункты в основной массив —
 pkg.forEach(l => lines.push(l + "  "));
@@ -1177,7 +1232,7 @@ const YYYY = ex.getFullYear();
 lines.push(
   ``,
   `🎁 *Подарки:*`,
-  `– Фундамент из блоков  `,
+  `– Фундамент из блоков 40×20×20  `,
   `– Сборка за 1 день  `,
   `– Обработка полозьев антисептиком - защита от гниения  `,
   `– Ступеньки на вход  `,
