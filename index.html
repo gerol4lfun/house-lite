@@ -190,10 +190,22 @@ type="button">
         </label>
 
         <div class="checkbox-group">
-          <label><input type="checkbox" id="chkFloor" /> Шпунт-пол (1000 ₽/м²)</label>
+          <label>Материал пола
+          <select id="selFloor">
+            <option value="plain" selected>Обрезная доска 25×150 мм — 0 ₽/м²</option>
+            <option value="osb">ОСБ — 500 ₽/м²</option>
+            <option value="board50x150">Доска 50×150 мм — 1 000 ₽/м²</option>
+            <option value="planed35x140">Строганая 35×140 мм — 1 400 ₽/м²</option>
+          </select>
+        </label>
           <label><input type="checkbox" id="chkMouse" /> Сетка «анти-мышь» (400 ₽/м²)</label>
         </div>
       </div>
+         
+         <label>Увеличить высоту строения (см)
+          <input type="number" id="inpExtraH" min="0" step="10" value="0">
+         </label>
+
 
       <!-- 2. перегородки -->
       <div class="extras">
@@ -207,7 +219,7 @@ type="button">
           </select>
         </label>
         <label>Длина, м
-          <input type="number" id="inpPartLen" min="0" step="0.1" value="0" />
+          <input type="number" id="inpPartLen" min="0" step="1" value="0" />
         </label>
       </div>
 
