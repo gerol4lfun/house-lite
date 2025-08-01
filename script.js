@@ -952,16 +952,20 @@ const diff = INSUL[selInsul.value] - baseInsulPrice;
     }
   }
 
-  if (vw > 0 && vd > 0) {
-  addExtra(VERANDA[verRoof] * verArea, `Веранда ${vw}×${vd} м`);
 
+// --- ВЕРАHДA: одна строка при любом варианте ---
+if (vw > 0 && vd > 0) {
+  // 3.1 цену берём:    односкатная = 7 500 ₽/м²   |   двускатная = 9 000 ₽/м²
+  //    verRoof уже "verRoof" или "verGable" (7500 / 9000)
+  const priceKey = verRoof;
+
+  // 3.2 подпись: если чек-бокс «внутр.» стоит – дописываем пометку
+  const label = `Веранда ${vw}×${vd} м${ isInsideVer ? " (внутр.)" : "" }`;
+
+  addExtra( VERANDA[priceKey] * verArea, label );
 }
 
-// ▸ внутренняя веранда в ДОМЕ: всегда 7 500 ₽/м²
-if (vw > 0 && vd > 0 && isInsideVer && type === "house") {
-    addExtra(VERANDA.verRoof * verArea,
-             `Веранда ${vw}×${vd} м (внутр.)`);
-}
+
 
 
   /* --- 5. Шпунт-пол, высота и «анти-мышь» --- */
@@ -1340,9 +1344,10 @@ if (hasRoute) {
 
   linesExtra = Object.entries(extraMap).map(([label, sum]) => {
   // убираем «(1 шт)» из лейбла и вычисляем count
-  const cnt = (label.match(/\((\d+) шт\)/)?.[1] || 1);
+  const cnt = +(label.match(/\((\d+) шт\)/)?.[1] || 0); 
   const cleanLabel = label.replace(/\s*\(\d+ шт\)/, "");
-  return `▪ ${cleanLabel} (${cnt} шт): ${formatPrice(sum)} ₽`;
+  const pcs = cnt > 0 ? ` (${cnt} шт)` : "";              // выводим только если надо
+  return `▪ ${cleanLabel}${pcs}: ${formatPrice(sum)} ₽`;
 });
 
 if (extras > 0) {
