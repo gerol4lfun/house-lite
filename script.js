@@ -835,11 +835,12 @@ if (type === 'house') {                     // дом
   let extras = 0, linesExtra = [];
 
     // универсальная функция — собираем в map
-  const extraMap = {};
-  function addExtra(sum, label){
-    if(!sum || sum<=0) return;
-    // добавляем к общей сумме
-    extras += sum;
+const extraMap = {};
+function addExtra(sum, label){
+  sum = Math.round(sum);          // ← НОВАЯ СТРОКА!
+  if(!sum || sum<=0) return;
+  // добавляем к общей сумме
+  extras += sum;
     // накапливаем по ярлыку
     if (extraMap[label]) {
       extraMap[label] += sum;
