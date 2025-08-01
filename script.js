@@ -824,7 +824,7 @@ const verRoof = document.querySelector('input[name="verRoofType"]:checked')?.val
   /* ===== 8.2. Базовая стоимость и доставка ===== */
   const area = w * l;
   // ── подготовка доставки ─────────────────────────────
-const veh = (w > 4 || l > 4) ? 2 : 1;      // 1 или 2 машины
+const veh = (l > 4) ? 2 : 1;      // 1 или 2 машины
 
 // 1. минимальная стоимость выезда
 const minDeliv = (type === "house")
