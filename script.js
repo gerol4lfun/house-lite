@@ -254,7 +254,7 @@ const METAL_PRICES = {
 const CONFIG = {
   hoblok: {
     widths:[3,4,5,6],
-    lengths:[2,2.5,3],
+    lengths:[2,2.5,3,4,5,6],
     basePrice:{
       "3x2":58300,"4x2":64900,"5x2":73700,"6x2":78100,
       "3x3":68200,"4x3":82500,"5x3":93500,"6x3":99000
@@ -264,7 +264,7 @@ const CONFIG = {
   },
   bytovka: {
     widths:[3,4,5,6],
-    lengths:[2,2.5,3],
+    lengths:[2,2.5,3,4,5,6],
     basePrice:{
       "3x2":79200,"4x2":89100,"5x2":99000,"6x2":103400,
       "3x3":95700,"4x3":108900,"5x3":136400,"6x3":139700
@@ -279,6 +279,12 @@ const CONFIG = {
     deliv: DELIV
   }
 };
+// цена 1 м² для нестандартных размеров
+const NONSTD_RATE = {
+  bytovka: 8800,   // ₽/м²
+  hoblok:  6050    // ₽/м²
+};
+
 
 // ──────────────────────────────────────────────────────────────────
 // 3. Жёсткие профили отделки по типу и крыше
@@ -739,16 +745,44 @@ const REPLACEMENT_PRICES = {
 };
 
 // ▸ доплата за каждые 10 см высоты, зависит от площади строения
-function pricePer10cm(w, l) {
-  const area = w * l;           // площадь без учёта веранды
-
-  if (area <= 17) return 5000;      // до 17 м²
-  if (area <= 23) return 10000;     // 18–23 м²
-  if (area <= 47) return 13000;     // 24–47 м²
-  return 16000;                     // свыше 48 м²
+function pricePer10cm(area){          // теперь получаем готовые м²
+  if (area <= 17) return 5000;
+  if (area <= 23) return 10000;
+  if (area <= 47) return 13000;
+  return 16000;
 }
 
+// ────────────────────────────────────────────────────────────────
+// ВСТАВЛЯЕМ ЗДЕСЬ — прямо перед calculate()
+// ────────────────────────────────────────────────────────────────
+const MODULES = [3, 2.5, 2];   // разрешённые «куски» длины
 
+/**
+ * Собирает цену из модулей 3 / 2.5 / 2 м.
+ * @param {"bytovka"|"hoblok"} type
+ * @param {number} w  – ширина (3-6 м)
+ * @param {number} l  – нужная длина (2-6 м + …)
+ * @returns {number|null} – сумма или null, если собрать нельзя
+ */
+function getModPrice(type, w, l) {
+  const tbl = (type === "hoblok")
+              ? CONFIG.hoblok.basePrice
+              : CONFIG.bytovka.basePrice;
+
+  let rest = l, sum = 0;
+
+  for (const m of MODULES) {
+    while (rest >= m - 0.001) {
+      const key   = `${w}x${m}`;
+      const price = tbl[key];
+      if (!price) return null;         // нет такого куска ⇒ отбой
+      sum  += price;
+      rest -= m;
+      rest  = +rest.toFixed(2);        // убираем хвосты 1e-15
+    }
+  }
+  return rest < 0.01 ? sum : null;     // если «хвост» остался ⇒ null
+}
 
 /* ------------------------------------------------------------------
    8. calculate — основная функция расчёта
@@ -770,6 +804,20 @@ async function calculate(){
 
   const w = wReal;   // ← «короткие» имена, как раньше
   const l = lReal;
+
+    /* --- 4. Веранда --- */
+  // ─── параметры веранды и «тёплая» площадь ─────────────────────
+const vw = parseFloat(inpVerWidth.value) || 0;
+const vd = parseFloat(inpVerDepth.value) || 0;
+
+const isInsideVer = document.getElementById('chkInVer').checked; // чекбокс «внутренняя»
+const verArea     = (vw > 0 && vd > 0) ? vw * vd : 0;
+
+const warmArea    = isInsideVer ? (w * l - verArea)    // только тёплая часть
+                                : (w * l);             // всё строение целиком
+// ──────────────────────────────────────────────────────────────
+const verRoof = document.querySelector('input[name="verRoofType"]:checked')?.value
+                || 'verRoof';
 
   let basePrice = 0, del = 0, finalInt, finalExt;
 
@@ -819,16 +867,44 @@ if (!hasRoute) {
 }
 
 // ───── БАЗОВАЯ СТОИМОСТЬ ─────
-if (type === 'house') {                     // дом
+if (type === 'house') {                         // 1. дом – старый способ
   const roof = document.querySelector('input[name="roof"]:checked').value;
-  basePrice = Math.ceil(area * RATE[roof].base / 10) * 10;
+  basePrice  = Math.ceil(area * RATE[roof].base / 10) * 10;
 
-} else if (type === 'hoblok') {             // хозблок
-  basePrice = getHoblokBasePrice(wPrice, lPrice);
+} else {                                        // 2. бытовка или хозблок
+  const tbl   = (type === 'hoblok')
+                ? CONFIG.hoblok.basePrice
+                : CONFIG.bytovka.basePrice;
 
-} else {                                    // бытовка
-  basePrice = CONFIG.bytovka.basePrice[`${wPrice}x${lPrice}`] || 0;
+  // 2.1 прямая попытка
+  basePrice   = tbl[`${wPrice}x${lPrice}`] ?? 0;
+
+  // 2.2 если 0 – пробуем «перепутанные» стороны
+  if (!basePrice) basePrice = tbl[`${lPrice}x${wPrice}`] ?? 0;
+
+  // 2.3 если всё ещё 0 – собираем из модулей
+  if (!basePrice) {
+    // ширина всегда ≤6, длина может быть любой > ширины
+    const wFix = wPrice;   // ширина – как ввели
+    const lFix = lPrice;   // длина  – как ввели
+
+    basePrice = getModPrice(type, wFix, lFix) ?? 0;
+  }
+
+  // 2.4 если не получилось – сообщаем менеджеру
+  // ----- после того, как попытались взять цену из прайса -----
+if (!basePrice && (type === "bytovka" || type === "hoblok")) {
+
+  //   1. площадь, за которую берём деньги
+  const baseArea = (isInsideVer && vw && vd)      // есть внутр. веранда?
+                  ? (w * l - verArea)             //  → только тёплая часть
+                  : (w * l);                      //  → вся коробка
+
+  //   2. тариф × площадь  + округление до сотни
+  basePrice = Math.round(baseArea * NONSTD_RATE[type] / 100) * 100;
 }
+}
+
 
 
   /* ===== 8.3. Доп. опции ===== */
@@ -855,35 +931,37 @@ if (selType.value !== "hoblok" && selInsul.value !== "none") {
   // базовая толщина: 50 мм у бытовки, 100 мм у остальных
 const baseInsulPrice = (type === "bytovka") ? 0 : INSUL.roll100;
 const diff = INSUL[selInsul.value] - baseInsulPrice;
-  if (diff > 0) addExtra(diff * area, getLabel(selInsul.selectedOptions[0]));
+  if (diff > 0) addExtra(diff * warmArea, getLabel(selInsul.selectedOptions[0]));
 }
 
 
   /* --- 2. Кровля (цветной/металлочерепица) --- */
   if (selRoofMat.value !== "galv" && selRoofMat.value !== "ondulin") {
-    addExtra(ROOFMAT[selRoofMat.value] * area, getLabel(selRoofMat.selectedOptions[0]));
+    addExtra(ROOFMAT[selRoofMat.value] * warmArea, getLabel(selRoofMat.selectedOptions[0]));
   }
 
   /* --- 3. Доплата за двускатную крышу для хозблоков/бытовок --- */
   if (type !== "house") {
     const roof = document.querySelector('input[name="roof"]:checked').value;
     if (roof === "gable") {
-      addExtra(1800 * area, "Двускатная крыша");
+      addExtra(1800 * warmArea, "Двускатная крыша");
     }
   }
 
-  /* --- 4. Веранда --- */
-  const vw = parseFloat(inpVerWidth.value) || 0;
-  const vd = parseFloat(inpVerDepth.value) || 0;
-  const verRoof = document.querySelector('input[name="verRoofType"]:checked')?.value || "verRoof";
-  if (vw>0 && vd>0) {
-    const verArea = vw * vd;
-    addExtra(VERANDA[verRoof] * verArea, `Веранда ${vw}×${vd} м`);
-  }
+  if (vw > 0 && vd > 0 && !isInsideVer) {
+  addExtra(VERANDA[verRoof] * verArea, `Веранда ${vw}×${vd} м`);
+}
+
+// ▸ внутренняя веранда в ДОМЕ: всегда 7 500 ₽/м²
+if (vw > 0 && vd > 0 && isInsideVer && type === "house") {
+    addExtra(VERANDA.verRoof * verArea,
+             `Веранда ${vw}×${vd} м (внутр.)`);
+}
+
 
   /* --- 5. Шпунт-пол, высота и «анти-мышь» --- */
 const floorCode  = document.getElementById('selFloor').value;
-const floorExtra = FLOOR_MAT[floorCode] * area;
+const floorExtra = FLOOR_MAT[floorCode] * warmArea;
 if (floorExtra) addExtra(floorExtra, FLOOR_CAPT[floorCode]);
 
 // ▸ увеличение высоты
@@ -891,12 +969,12 @@ const extraH = +inpExtraH.value || 0;        // введено в см
 let heightNote = "";                         // <— добавили
 if (extraH > 0) {
   const steps = Math.ceil(extraH / 10);
-  const addH  = steps * pricePer10cm(w, l);
+  const addH  = steps * pricePer10cm(warmArea);
   addExtra(addH, `Высота +${extraH} см`);
   heightNote = `– Высота увеличена на ${extraH} см`;   // <— запомнили
 }
 
-if (chkMouse.checked) addExtra(FLOOR.mouse * area, "Сетка «анти-мышь»");
+if (chkMouse.checked) addExtra(FLOOR.mouse * warmArea, "Сетка «анти-мышь»");
 
 
   /* --- 6. Перегородки --- */
@@ -1067,7 +1145,12 @@ const areaOut  = IMIT.has(extTgt) ? round3(wallArea(w, l, extH))
   
 /* ─── Заголовок с учётом веранды ──────────────────────────────── */
 // если ввели оба размера – добавляем хвост  «+ веранда …×…»
-const verTitle = (vw > 0 && vd > 0) ? ` + веранда ${vw}×${vd}` : "";
+let verTitle = "";
+if (vw > 0 && vd > 0){
+  verTitle = isInsideVer
+    ? `, включая веранду ${vw}×${vd}`
+    : ` + веранда ${vw}×${vd}`;
+}
 
 // итоговый заголовок КП
 const total    = basePrice + del + extras;
@@ -1140,7 +1223,9 @@ if (type === "house") {
 if (type === "house") pkg.push("– Перегородка: по центру дома");
 
 // 7) Доп-элементы пользователя
-if (vw > 0 && vd > 0) pkg.push(`– Веранда: ${vw}×${vd} м`);
+if (vw > 0 && vd > 0){
+  pkg.push(`– Веранда: ${vw}×${vd} м (${isInsideVer ? 'внутренняя' : 'пристройка'})`);
+}
 if (chkMouse.checked) pkg.push("– Сетка «анти-мышь»");
 
 if (partType !== "none" && partLen) {
