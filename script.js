@@ -867,9 +867,13 @@ if (!hasRoute) {
 }
 
 // ───── БАЗОВАЯ СТОИМОСТЬ ─────
-if (type === 'house') {                         // 1. дом – старый способ
+if (type === 'house') {
   const roof = document.querySelector('input[name="roof"]:checked').value;
-  basePrice  = Math.ceil(area * RATE[roof].base / 10) * 10;
+
+  // если веранда «внутри» – забираем её квадратуру из расчёта
+  const paidArea = isInsideVer ? warmArea : area;   // warmArea = (w*l - verArea)
+
+  basePrice = Math.ceil(paidArea * RATE[roof].base / 10) * 10;
 
 } else {                                        // 2. бытовка или хозблок
   const tbl   = (type === 'hoblok')
@@ -948,8 +952,9 @@ const diff = INSUL[selInsul.value] - baseInsulPrice;
     }
   }
 
-  if (vw > 0 && vd > 0 && !isInsideVer) {
+  if (vw > 0 && vd > 0) {
   addExtra(VERANDA[verRoof] * verArea, `Веранда ${vw}×${vd} м`);
+
 }
 
 // ▸ внутренняя веранда в ДОМЕ: всегда 7 500 ₽/м²
@@ -1300,6 +1305,24 @@ pkg.push(`– Высота ${type==="house"?"помещения":"потолка
 
 // — добавляем все пункты в основной массив —
 pkg.forEach(l => lines.push(l + "  "));
+
+// ─── Площади: тёплая / веранда / общая ─────────────────────────
+function nice(n){ return n.toFixed(1).replace('.', ','); }
+
+const warmSq  = nice(warmArea);
+const verSq   = nice(verArea);
+const totalSq = nice(warmArea + verArea); 
+
+lines.push('', '📐 *Площадь:*');      // один пустой отступ ПЕРЕД блоком
+
+if (verArea > 0.01){
+  lines.push(
+    `– Тёплое помещение: ${warmSq} м²`,
+    `– Пристройка / веранда: ${verSq} м²`
+  );
+}
+lines.push(`– Общая площадь: ${totalSq} м²`);
+
 
 /* ─── Блок «Стоимость» ───────────────────────────────────────── */
 lines.push(
