@@ -790,6 +790,25 @@ function getModPrice(type, w, l) {
 async function calculate(){
   const type = selType.value;
 
+    /* ---   ОБЪЯВЛЯЕМ СРАЗУ, чтобы не было ReferenceError   --- */
+  const pkg = [];                  // список «Комплектация»
+  let baseWinSize,  baseWinQty;    // базовые окна
+  let baseDoorLabel, baseDoorQty;  // базовые двери
+
+  if (type === "house") {          // каркасный дом
+  baseWinSize   = "80×80";
+  baseWinQty    = 3;
+  baseDoorLabel = "Двери РФ: самонаборные";
+  baseDoorQty   = 2;
+} else {                         // бытовка / хозблок
+  baseWinSize   = "60×90";
+  baseWinQty    = 1;
+  baseDoorLabel = "Дверь: самонаборная 200×70–90 см";
+  baseDoorQty   = 1;
+}
+  /* ----------------------------------------------------------- */
+
+
   // --- реальные размеры, как выбрал пользователь ---
   const wReal = parseFloat(inpWidth.value);   // ширина
   const lReal = parseFloat(inpLength.value);  // длина (2, 2.5 или 3)
@@ -1004,6 +1023,10 @@ if (chkMouse.checked) addExtra(FLOOR.mouse * warmArea, "Сетка «анти-м
   /* --- 9. Пандус --- */
 if (chkRamp.checked) addExtra(RAMP, "Пандус");
 
+// 5-БИС) фиксируем базовые окна / двери (итоговое количество)
+
+// ------------------------------------------------------------------
+
   /* --- 9. Окна / двери (все варианты) --- */
 windowsContainer.querySelectorAll(".window-row").forEach(row => {
   const kind = row.querySelector(".win-type").value;   // pvcWin | woodWin | pvcDoor | woodDoor
@@ -1016,35 +1039,66 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
   let price = 0, caption = "";
 
   switch (kind) {
-    case "pvcWin":
-      price   = WINDOWS[code][cam];
-      caption = `Окно ПВХ ${code}`;
-      break;
-
-    case "pvcDoor":
-      price   = WINDOWS[code][2] || WINDOWS[code][1];
-      caption = `Дверь ПВХ ${code}`;
-      break;
-
-    case "woodWin":
-      price   = WOOD_PRICES.win[code];
-      caption = `Окно деревянное ${code}`;
-      break;
-
-    case "woodDoor":
-      price   = WOOD_PRICES.door[code];
-      const cap = { std:"Обычная", hinge:"Распашная", hingeWarm:"Распашная утеплённая" }[code];
-      caption = `Дверь деревянная (${cap})`;
-      break;
-      case "metalDoor":
-    price   = METAL_PRICES[code];
-    caption = { rf:"Дверь РФ",
-                rfThermo:"Дверь РФ (термо)",
-                thermoLux:"Термо Люкс" }[code];
+  /* ---------- ОКНА ---------- */
+  case "pvcWin": {                        // окно ПВХ
+    price   = WINDOWS[code][cam];
+    caption = `Окно ПВХ ${code}`;
+    if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+    pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ в «Комплектацию»
     break;
   }
 
+  case "woodWin": {                // окно деревянное
+  price   = WOOD_PRICES.win[code];
+  caption = `Окно деревянное ${code}`;
+
+  // если это базовый размер – просто увеличиваем счётчик
+  if (code === baseWinSize) {
+    baseWinQty += qty;
+  } else {
+    pkg.push(`– ${caption} (${qty} шт)`);
+  }
+
   if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+  break;
+}
+
+  /* ---------- ДВЕРИ ---------- */
+  case "pvcDoor": {                       // дверь ПВХ
+    price   = WINDOWS[code][2] || WINDOWS[code][1];
+    caption = `Дверь ПВХ ${code}`;
+    if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+    pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
+    break;
+  }
+
+  case "woodDoor": {               // дверь деревянная
+  price = WOOD_PRICES.door[code];
+  const cap = { std:"Обычная", hinge:"Распашная",
+                hingeWarm:"Распашная утеплённая", filen:"Филенчатая" }[code];
+  caption = `Дверь деревянная (${cap})`;
+
+  if (code === "std") {          // базовая «самонаборная»
+    baseDoorQty += qty;
+  } else {
+    pkg.push(`– ${caption} (${qty} шт)`);
+  }
+
+  if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+  break;
+}
+
+  case "metalDoor": {                     // дверь металлическая
+    price   = METAL_PRICES[code];
+    caption = { rf:"Дверь металлическая Тула",
+                rfThermo:"Дверь РФ (термо)",
+                thermoLux:"Термо Люкс" }[code];
+    if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+    pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
+    break;
+  }
+}
+
 });
 
   /* ===== 8.4. Логика отделки (замена материала) ===== */
@@ -1177,7 +1231,6 @@ const lines = [
 ];
 
 /* ===== 8.6. Комплектация (финальное состояние) ===== */
-const pkg = [];
 
 if (heightNote) pkg.push(heightNote);
 
@@ -1209,24 +1262,14 @@ pkg.push(`– Кровля: ${getLabel(selRoofMat.selectedOptions[0])}`);
 // 5) Окна (деревянные по умолчанию) и двери базовые
 let hasUserWindow = false;                    // новое имя
 
+
+// -----------------------------------------------------------------
+
 windowsContainer.querySelectorAll(".window-row").forEach(row => {
   const size = row.querySelector(".win-size").value;
   const kind = row.querySelector(".win-type").value;   // pvcWin | woodWin | …
   if (size && (kind === "pvcWin" || kind === "woodWin")) hasUserWindow = true;
 });
-
-if (!hasUserWindow) {
-  if (type === "house") pkg.push("– Окна: 3 × деревянные 80×80 см");
-  else                  pkg.push("– Окно: деревянное 60×90 см (1 шт)");
-}
-
-// 5) Базовые двери
-if (type === "house") {
-  // у дома есть центральная перегородка → нужно 2 двери
-  pkg.push("– Двери РФ: самонаборные (2 шт)");
-} else {
-  pkg.push("– Дверь: самонаборная 200×70–90 см");
-}
 
 // 6) Перегородка по центру (база для дома)
 if (type === "house") pkg.push("– Перегородка: по центру дома");
@@ -1246,44 +1289,8 @@ if (selPile.value) {
   pkg.push(`– Свайный фундамент: ${selPile.value} × ${pileCnt} шт`);
 }
 
-/* --- Окна / двери пользователя --- */
-windowsContainer.querySelectorAll(".window-row").forEach(row => {
-  const kind = row.querySelector(".win-type").value;   // pvcWin | woodWin | pvcDoor | woodDoor | metalDoor
-  const size = row.querySelector(".win-size").value;
-  const qty  = +row.querySelector(".win-qty").value || 1;
-  if (!size) return;
-
-  // Заголовок строки
-  const textMap = {
-    pvcWin:   "Окно ПВХ",
-    pvcDoor:  "Дверь ПВХ",
-    woodWin:  "Окно деревянное",
-    woodDoor: "Дверь деревянная",
-    metalDoor:"Дверь металлическая"
-  };
-  const title = textMap[kind] || "Окно/дверь";
-
-  // «Красивые» подписи для специальных размеров / кодов
-  const NICE_WOOD  = {
-    std:       "обычная",
-    hinge:     "распашная",
-    hingeWarm: "распашная утеплённая",
-    filen:     "филенчатая"
-  };
-  const NICE_METAL = {
-    rf:        "РФ",
-    rfThermo:  "РФ (термо)",
-    thermoLux: "Термо Люкс"
-  };
-
-  const nice =
-        (kind === "woodDoor")  ? (NICE_WOOD[size]  || size) :
-        (kind === "metalDoor") ? (NICE_METAL[size] || size) :
-                                 size;
-
-  pkg.push(`– ${title} ${nice} (${qty} шт)`);
-});
-
+pkg.push(`– Окно деревянное ${baseWinSize} (${baseWinQty} шт)`);
+pkg.push(`${baseDoorLabel} (${baseDoorQty} шт)`);
 
 /* ──────── НОВЫЙ БЛОК: материал пола ──────── */
 pkg.push("– " + FLOOR_CAPT[floorCode]);
