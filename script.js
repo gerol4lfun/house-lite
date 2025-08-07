@@ -149,13 +149,13 @@ const FLOOR   = { floor:1000, mouse:400 };
 const FLOOR_MAT = {
   plain: 0,
   osb: 500,
-  board50x150: 1000,
+  board50x150: 1700,
   planed35x140: 1400
 };
 const FLOOR_CAPT = {
   plain: "Пол: обрезная доска 25×150 мм",
   osb:   "Пол: ОСБ влагостойкий",
-  board50x150: "Пол: чистовой 50×150 мм",
+  board50x150: "Пол: Шпунт доска чистовой 50×150 мм",
   planed35x140: "Пол: строганая 35×140 мм"
 };
 const RAMP = 2000; // пандус
