@@ -1445,17 +1445,17 @@ async function getKm(address){
     // 4. Показываем под полем адреса
     document.getElementById('kmInfo').textContent =
           km.toFixed(1).replace('.', ',') + ' км';
-    
-     // ссылка: маршрут «от моего местоположения → к клиенту»
-const [lon, lat] = coords;                        // порядок: долгота, широта
-const url = `https://yandex.ru/maps/?rtext=~${lon},${lat}&rtt=auto`;
+ 
+// открыть карточку адреса (с левой панелью и кнопкой «Маршрут»)
+const [lat, lon] = coords;                  // ymaps → [lat, lon]
+const ll = `${lon},${lat}`;                 // в URL нужно lon,lat
+const urlCard = `https://yandex.ru/maps/?text=${encodeURIComponent(address)}&ll=${ll}&z=16`;
 
 const link = document.getElementById('mapLink');
-link.href        = url;                           // куда кликнёт водитель
-link.textContent = address;                       // что он увидит
+link.href = urlCard;
+link.textContent = address;
 link.style.display = '';
 document.getElementById('kmSep').style.display = '';
-
 
 
     // 5. Проверяем лимит 250 км
