@@ -196,9 +196,14 @@ const PILE_COUNT_SMALL = {
 };
 // ▸ вернуть «правильное» количество свай по типу и размеру
 function getPileCount(type, w, l) {
+  // НОРМАЛИЗУЕМ ширины 2.1 → 2.0 и 2.3 → 2.5 (для совпадения с табличными ключами)
+  const norm = v => (v === 2.1 ? 2.0 : (v === 2.3 ? 2.5 : v));
+  const wn = norm(w);
+  const ln = norm(l);
+
   // две записи одного и того же размера – «3x4» и «4x3»
-  const k1 = `${w}x${l}`;
-  const k2 = `${l}x${w}`;
+  const k1 = `${wn}x${ln}`;
+  const k2 = `${ln}x${wn}`;
 
   // ── хозблок / бытовка ─────────────────────────────
   if (type !== "house") {
@@ -260,8 +265,8 @@ const METAL_PRICES = {
 ------------------------------------------------------------------ */
 const CONFIG = {
   hoblok: {
-    widths:[2,2.5,3,4,5,6],
-    lengths:[2,2.5,3,4,5,6],
+    widths:[2,2.1,2.3,2.5,3,4],       // добавили 2.1 и 2.3; убрали 5 и 6
+    lengths:[2,2.5,3,4,5,6,7,8],      // добавили 7 и 8
     basePrice:{
       "2x2":52800,"3x2":58300,"4x2":64900,"5x2":73700,"6x2":78100,
       "3x3":68200,"4x3":82500,"5x3":93500,"6x3":99000
@@ -270,8 +275,9 @@ const CONFIG = {
     verandaPrice:7500
   },
   bytovka: {
-    widths:[2,2.5,3,4,5,6],
-    lengths:[2,2.5,3,4,5,6],
+    widths:[2,2.1,2.3,2.5,3,4],       // добавили 2.1 и 2.3; убрали 5 и 6
+    lengths:[2,2.5,3,4,5,6,7,8],      // добавили 7 и 8
+
     basePrice:{
       "2x2":70400,"3x2":79200,"4x2":89100,"5x2":99000,"6x2":103400,
       "3x3":95700,"4x3":108900,"5x3":136400,"6x3":139700
@@ -815,18 +821,23 @@ async function calculate(){
 }
   /* ----------------------------------------------------------- */
 
+// --- реальные размеры, как выбрал пользователь ---
+const wReal = parseFloat(inpWidth.value);   // ширина из селекта
+const lReal = parseFloat(inpLength.value);  // длина из селекта
 
-  // --- реальные размеры, как выбрал пользователь ---
-  const wReal = parseFloat(inpWidth.value);   // ширина
-  const lReal = parseFloat(inpLength.value);  // длина (2, 2.5 или 3)
+// --- размеры, по которым смотрим прайсовую цену ---
+let wPrice = wReal;
+let lPrice = lReal;
 
-  // --- размеры, по которым смотрим прайсовую цену ---
-  let wPrice = wReal;          // ширина всегда «как есть»
-  let lPrice = lReal;          // длина 2.5 → 3 (для хозблоков/бытовок)
 
-  if (type !== "house") {      // только для хозблоков и бытовок
-    if (lReal === 2.5) lPrice = 3;
-  }
+if (type !== "house") {                 // бытовка / хозблок
+  // НОВОЕ: ширины-синонимы для прайса
+  if (wReal === 2.1) wPrice = 2.0;      // 2.1 считаем как 2.0
+  else if (wReal === 2.3) wPrice = 2.5; // 2.3 считаем как 2.5
+
+  // как и было: длина 2.5 считаем по прайсу как 3
+  if (lReal === 2.5) lPrice = 3;
+}
 
   const w = wReal;   // ← «короткие» имена, как раньше
   const l = lReal;
@@ -923,27 +934,11 @@ if (!basePrice && wPrice === 2.5) {
 /* ------------------------------------------------------------------- */
 
 
-  // 2.3 если всё ещё 0 – собираем из модулей
-  if (!basePrice) {
-    // ширина всегда ≤6, длина может быть любой > ширины
-    const wFix = wPrice;   // ширина – как ввели
-    const lFix = lPrice;   // длина  – как ввели
-
-    basePrice = getModPrice(type, wFix, lFix) ?? 0;
+    // 2.3 если всё ещё 0 — НЕ собираем из модулей, а считаем по м² (бытовка и хозблок)
+  if (!basePrice && (type === 'bytovka' || type === 'hoblok')) {
+    const baseArea = (isInsideVer && vw && vd) ? (w * l - verArea) : (w * l);
+    basePrice = Math.round(baseArea * NONSTD_RATE[type] / 100) * 100;
   }
-
-  // 2.4 если не получилось – сообщаем менеджеру
-  // ----- после того, как попытались взять цену из прайса -----
-if (!basePrice && (type === "bytovka" || type === "hoblok")) {
-
-  //   1. площадь, за которую берём деньги
-  const baseArea = (isInsideVer && vw && vd)      // есть внутр. веранда?
-                  ? (w * l - verArea)             //  → только тёплая часть
-                  : (w * l);                      //  → вся коробка
-
-  //   2. тариф × площадь  + округление до сотни
-  basePrice = Math.round(baseArea * NONSTD_RATE[type] / 100) * 100;
-}
 }
 
 
@@ -1470,10 +1465,10 @@ document.getElementById('kmSep').style.display = '';
 
     return km;             // ← вернули число для расчётов
   }catch(e){
-    alert("Ошибка Яндекс.Карт (см. консоль)");
-    console.error(e);
-    return null;
-  }
+  alert("Ошибка Яндекс.Карт (см. консоль)");
+  console.error(e);
+  return null;
+}
 }
   // Сброс всех фильтров и результата
 function resetFilters() {
