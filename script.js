@@ -58,6 +58,25 @@ function formatPrice(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+/* --- 0a. Комиссия и округление --- */
+const COMM = 0.10;                                  // 10%
+
+// Брутто (с комиссией), для любых сумм/м²/шт:
+const grossInt = x => Math.round(x * (1 + COMM));
+
+// Брутто для доставки с округлением вверх к 50 ₽:
+const gross50  = x => Math.ceil((x * (1 + COMM)) / 50) * 50;
+
+/* Преобразовать текст метки с ценой в скобках → показать с комиссией.
+   Меняет каждое число «… ₽» внутри строки на «… ₽» с нашей наценкой. */
+function labelGross(text){
+  return text.replace(/(\d[\d\s.]*)\s*₽/g, (_, num) => {
+    const n   = parseInt(String(num).replace(/[^\d]/g, ''), 10) || 0;
+    const brut= grossInt(n);
+    return `${formatPrice(brut)} ₽`;
+  });
+}
+
 /* --- высота стен и площадь стен -------------------------------- */
 function getWallHeight(type, roof, ext = false) {
   // прибавка, введённая пользователем (см)
@@ -484,7 +503,7 @@ document.addEventListener('click', e => {
   btnCalc.addEventListener("click", calculate);
   btnReset.addEventListener("click", resetFilters);
 btnClearAddr.addEventListener("click", clearDelivery);
-
+updateStaticPriceLabels(); 
 
   handleTypeChange();
 });
@@ -520,7 +539,7 @@ function updateFinishSelects(type, roof) {
   inner.forEach(([value, label]) => {
     const opt = document.createElement("option");
     opt.value = value;
-    opt.textContent = label;
+    opt.textContent = labelGross(label);
     selInRep.appendChild(opt);
   });
 
@@ -529,7 +548,7 @@ function updateFinishSelects(type, roof) {
   outer.forEach(([value, label]) => {
     const opt = document.createElement("option");
     opt.value = value;
-    opt.textContent = label;
+    opt.textContent = labelGross(label);
     selOutRep.appendChild(opt);
   });
 
@@ -545,6 +564,62 @@ function updateFinishSelects(type, roof) {
 /* ------------------------------------------------------------------
    5. handleTypeChange: обновляем форму при смене типа строения
 ------------------------------------------------------------------ */
+/* Переписать видимые цены в статических селектах/лейблах под нашу наценку */
+function updateStaticPriceLabels(){
+  // 1) Утепление (селект selInsul)
+  Array.from(selInsul.options).forEach(opt => {
+    if (opt.value === "none") return;
+    const p = INSUL[opt.value];
+    if (!p && p!==0) return;
+    opt.textContent = opt.textContent.replace(/\(.*?₽\/м²\)/, `(${formatPrice(grossInt(p))} ₽/м²)`);
+  });
+
+  // 2) Кровля по площади (selRoofMat)
+  Array.from(selRoofMat.options).forEach(opt => {
+    const p = ROOFMAT[opt.value] || 0;
+    if (p > 0){
+      opt.textContent = opt.textContent.replace(/\(.*?₽\/м²\)/, `(${formatPrice(grossInt(p))} ₽/м²)`);
+    }
+  });
+
+  // 3) Пол (selFloor)
+  Array.from(selFloor.options).forEach(opt => {
+    const p = FLOOR_MAT[opt.value];
+    if (p > 0){
+      opt.textContent = opt.textContent.replace(/— .*?₽\/м²\)/, `— ${formatPrice(grossInt(p))} ₽/м²)`);
+    }
+  });
+
+  // 4) Перегородки (selPart)
+  Array.from(selPart.options).forEach(opt => {
+    const p = PART[opt.value];
+    if (p){
+      opt.textContent = opt.textContent.replace(/\(.*?₽\/пог\.м\)/, `(${formatPrice(grossInt(p))} ₽/пог.м)`);
+    }
+  });
+
+  // 5) Сетка «анти-мышь» (лейбл с чекбоксом #chkMouse)
+  const mouseLbl = document.querySelector('label input#chkMouse')?.parentElement;
+  if (mouseLbl){
+    mouseLbl.innerHTML = mouseLbl.innerHTML.replace(/\(.*?₽\/м²\)/, `(${formatPrice(grossInt(FLOOR.mouse))} ₽/м²)`);
+  }
+
+  // 6) Пандус (лейбл с чекбоксом #chkRamp)
+  const rampLbl = document.querySelector('label input#chkRamp')?.parentElement;
+  if (rampLbl){
+    rampLbl.innerHTML = rampLbl.innerHTML.replace(/\(.*?₽\)/, `(${formatPrice(grossInt(RAMP))} ₽)`);
+  }
+
+  // 7) Веранда — радио «односкатная/двускатная»
+  document.querySelectorAll('input[name="verRoofType"]').forEach(inp => {
+    const lbl = inp.closest('label');
+    if (!lbl) return;
+    const p = VERANDA[inp.value];                  // 7500 / 9000
+    lbl.innerHTML = lbl.innerHTML.replace(/\(.*?₽\/м²\)/, `(${formatPrice(grossInt(p))} ₽/м²)`);
+  });
+}
+
+
 function handleTypeChange() {
   const type = selType.value;
   const cfg  = CONFIG[type];
@@ -580,14 +655,15 @@ if (prevL && cfg.lengths.includes(prevL)) {
 
 
   // 2) показываем блок «Тип крыши» и меняем подписи
-  roofContainer.style.display = "block";
   roofContainer.querySelectorAll("label").forEach(lbl => {
-    const inp = lbl.querySelector("input[name='roof']");
-    if (!inp) return;
-    lbl.childNodes[1].nodeValue = inp.value === "lom"
-      ? (type==="house" ? " Ломаная" : " Односкатная (базовая)")
-      : (type==="house" ? " Двускатная" : " Двускатная (+1 800 ₽/м²)");
-  });
+  const inp = lbl.querySelector("input[name='roof']");
+  if (!inp) return;
+  const gableSurcharge = formatPrice(grossInt(1800)); // 1800 → 1980 ₽/м²
+  lbl.childNodes[1].nodeValue = inp.value === "lom"
+    ? (type==="house" ? " Ломаная" : " Односкатная (базовая)")
+    : (type==="house" ? " Двускатная" : ` Двускатная (+${gableSurcharge} ₽/м²)`);
+});
+
 
   // 8) сбрасываем остальные селекты и чекбоксы
 [selInsul, selRoofMat, selInRep, selOutRep, selPart].forEach(sel => {
@@ -635,6 +711,7 @@ if (selType.value === 'hoblok') {
   inpVerWidth.value = "";
   inpVerDepth.value = "";
   populatePileOptions();
+  updateStaticPriceLabels();
 }
 
 
@@ -648,18 +725,20 @@ function populatePileOptions () {
 
   const cnt  = getPileCount(type, w, l);
 
-  // 👉  для домов (type==='house') Ø76 не показываем
-  const skip76 = (type === "house" && cnt > 12);       // все дома ≥ 6×4 м
+  // 👉  для домов Ø76 не показываем
+  const skip76 = (type === "house" && cnt > 12);
 
   selPile.innerHTML = '<option value="">— без свай —</option>';
-  Object.entries(PILES).forEach(([dim, price]) => {
-    if (skip76 && dim.includes("×76")) return;  
-    if (dim === "1.5×76" && cnt > 12) return;             // пропускаем 76-е
+
+  Object.entries(PILES).forEach(([dim, pricePerUnit]) => {
+    if (skip76 && dim.includes("×76")) return;
+    if (dim === "1.5×76" && cnt > 12) return;
+
+    const priceGrossPerUnit = grossInt(pricePerUnit); // показываем с комиссией
     selPile.innerHTML +=
-      `<option value="${dim}">${dim} × ${cnt} шт (${formatPrice(price)} ₽/шт)</option>`;
+      `<option value="${dim}">${dim} × ${cnt} шт (${formatPrice(priceGrossPerUnit)} ₽/шт)</option>`;
   });
 }
-
 
 /* ------------------------------------------------------------------
    7. addWindowRow — добавляем строку «Окно / дверь»
@@ -669,75 +748,69 @@ function addWindowRow () {
   const row   = clone.querySelector(".window-row");
 
   const selType = row.querySelector(".win-type");   // pvcWin | woodWin | pvcDoor | woodDoor
-  const selCam  = row.querySelector(".win-cam");    // 1-кам / 2-кам  (только для ПВХ-окон)
+  const selCam  = row.querySelector(".win-cam");    // 1-кам / 2-кам (только для ПВХ-окон)
   const selSize = row.querySelector(".win-size");   // размеры / варианты
   const qtyInp  = row.querySelector(".win-qty");
   const btnX    = row.querySelector(".btnRemoveWindow");
 
-  // карты для деревянных дверей (чисто для подписи)
-  const DOOR_CAPTION = { std:"Обычная", hinge:"Распашная", hingeWarm:"Распашная утеплённая",
-  filen: "Филенчатая" };
+  const DOOR_CAPTION = {
+    std:"Обычная", hinge:"Распашная", hingeWarm:"Распашная утеплённая", filen:"Филенчатая"
+  };
 
-  // перестраиваем drop-down при любом изменении
   function rebuild () {
-    const t = selType.value;         // выбранный «тип»
-
-    /* 1. показывать ли поле «кам.» */
+    const t = selType.value;
     selCam.style.display = (t === "pvcWin") ? "" : "none";
-
-    /* 2. наполняем список размеров / вариантов */
     selSize.innerHTML = '<option value="">— размер / тип —</option>';
 
-    if (t === "pvcWin") {                        // ▸ окно ПВХ
+    if (t === "pvcWin") {
       const cam = selCam.value;
       Object.entries(WINDOWS).forEach(([sz, cams]) => {
         if (cams[cam]) {
-          selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(cams[cam])} ₽)</option>`;
+          const pGross = grossInt(cams[cam]);
+          selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(pGross)} ₽)</option>`;
         }
       });
 
-    } else if (t === "pvcDoor") {                // ▸ дверь ПВХ
+    } else if (t === "pvcDoor") {
       Object.entries(WINDOWS).forEach(([sz, cams]) => {
         if (sz.includes("дверь ПВХ")) {
           const p = cams[2] || cams[1];
-          selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(p)} ₽)</option>`;
+          const pGross = grossInt(p);
+          selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(pGross)} ₽)</option>`;
         }
       });
 
-    } else if (t === "woodWin") {                // ▸ окно деревянное
+    } else if (t === "woodWin") {
       Object.entries(WOOD_PRICES.win).forEach(([sz, p]) => {
-        selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(p)} ₽)</option>`;
+        selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(grossInt(p))} ₽)</option>`;
       });
 
-    } else if (t === "woodDoor") {               // ▸ дверь деревянная
+    } else if (t === "woodDoor") {
       Object.entries(WOOD_PRICES.door).forEach(([key, p]) => {
         selSize.innerHTML +=
-          `<option value="${key}">${DOOR_CAPTION[key]} (${formatPrice(p)} ₽)</option>`;
+          `<option value="${key}">${DOOR_CAPTION[key]} (${formatPrice(grossInt(p))} ₽)</option>`;
       });
-    
-    } else if (t === "metalDoor") {                     // ▸ дверь металлическая
-  const CAPTION = {
-    rf:        "Дверь металлическая РФ",
-    rfThermo:  "Дверь РФ (термо)",
-    thermoLux: "Термо Люкс"
-  };
-  Object.entries(METAL_PRICES).forEach(([code, p]) => {
-    selSize.innerHTML +=
-      `<option value="${code}">${CAPTION[code]} (${formatPrice(p)} ₽)</option>`;
-  });
- }
 
+    } else if (t === "metalDoor") {
+      const CAPTION = {
+        rf:"Дверь металлическая РФ",
+        rfThermo:"Дверь РФ (термо)",
+        thermoLux:"Термо Люкс"
+      };
+      Object.entries(METAL_PRICES).forEach(([code, p]) => {
+        selSize.innerHTML +=
+          `<option value="${code}">${CAPTION[code]} (${formatPrice(grossInt(p))} ₽)</option>`;
+      });
+    }
   }
 
-  // ─── события ───────────────────────────────────────────────────
   selType.addEventListener("change", rebuild);
   selCam .addEventListener("change", rebuild);
   btnX   .addEventListener("click", () => row.remove());
 
-  rebuild();                       // первичное заполнение
+  rebuild();
   windowsContainer.appendChild(row);
 }
-
 
 // Человекочитаемые названия материалов
 const MATERIAL_NAME = {
@@ -882,25 +955,21 @@ if (address) {
 
 // 3. если маршрута нет (пустой адрес) — доставка = минималка
 if (!hasRoute) {
-  del = minDeliv;
+  del = gross50(minDeliv); // показываем "от ..." уже с комиссией
 } else {
-  // 3.1 выбираем тариф за 1 км
   let rate;
-  if (type === "house") {                 // дом
-    const key = `${w}x${l}`;              // например "6x5"
-    rate = DELIV[key] || 300;             // 180 / 200 / 300; 300 — «запасной»
-  } else {                                // хозблок или бытовка
-    rate = (veh === 2)
-      ? CONFIG[type].delivery.perKm2      // 140 / 180 р км
-      : CONFIG[type].delivery.perKm1;     // 80 / 100 р км
+  if (type === "house") {
+    const key = `${w}x${l}`;
+    rate = DELIV[key] || 300;
+  } else {
+    rate = (veh === 2) ? CONFIG[type].delivery.perKm2 : CONFIG[type].delivery.perKm1;
   }
 
-  // 3.2 считаем стоимость и применяем порог
   let cost = rate * km;
   if (cost < minDeliv) cost = minDeliv;
 
-  // 3.3 округляем до 50 ₽
-  del = Math.ceil(cost / 50) * 50;
+  const cost50 = Math.ceil(cost / 50) * 50; // по прайсу к 50
+  del = gross50(cost50);                    // +10% и снова к 50 ₽
 }
 
 // ───── БАЗОВАЯ СТОИМОСТЬ ─────
@@ -949,17 +1018,12 @@ if (!basePrice && wPrice === 2.5) {
     // универсальная функция — собираем в map
 const extraMap = {};
 function addExtra(sum, label){
-  sum = Math.round(sum);          // ← НОВАЯ СТРОКА!
+  sum = Math.round(sum);
+  sum = grossInt(sum); // ← здесь добавляем нашу 10% комиссию на ЛЮБОЙ доп
   if(!sum || sum<=0) return;
-  // добавляем к общей сумме
   extras += sum;
-    // накапливаем по ярлыку
-    if (extraMap[label]) {
-      extraMap[label] += sum;
-    } else {
-      extraMap[label] = sum;
-    }
-  }
+  extraMap[label] = (extraMap[label] || 0) + sum;
+}
 
   /* --- 1. Утепление (если > базового) --- */
   // --- 1. Утепление (считаем только для бытовки и дома) ---
