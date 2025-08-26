@@ -1367,7 +1367,7 @@ if (selPile.value) {
 }
 
 pkg.push(`– Окно деревянное ${baseWinSize} (${baseWinQty} шт)`);
-pkg.push(`${baseDoorLabel} (${baseDoorQty} шт)`);
+pkg.push(`– ${baseDoorLabel} (${baseDoorQty} шт)`);
 
 /* ──────── НОВЫЙ БЛОК: материал пола ──────── */
 pkg.push("– " + FLOOR_CAPT[floorCode]);
@@ -1392,7 +1392,7 @@ pkg.push(`– Высота ${type==="house"?"помещения":"потолка
 
 
 // — добавляем все пункты в основной массив —
-pkg.forEach(l => lines.push(l + "  "));
+pkg.forEach(l => lines.push((l.startsWith('–') ? l : '– ' + l) + "  "));
 
 // ─── Площади: тёплая / веранда / общая ─────────────────────────
 function nice(n){ return n.toFixed(1).replace('.', ','); }
