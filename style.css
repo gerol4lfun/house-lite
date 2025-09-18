@@ -605,12 +605,24 @@ fieldset legend {
   border-bottom-color: #dc2626;
 }
 
+/* ─── ЗАБЛОКИРОВАННЫЕ ПОЛЯ ────────────────────────────────────────────── */
+select:disabled {
+  background-color: #f5f5f5;
+  color: #999;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+select:disabled option {
+  color: #999;
+}
+
 /* ─── ПОДСКАЗКИ ────────────────────────────────────────────── */
 .hint {
   font-size: 11px;
   color: #666;
   font-style: italic;
-  display: block;
+  display: inline; /* Изменяем с block на inline */
   line-height: 1.3;
 }
 
@@ -621,7 +633,8 @@ fieldset legend {
 .delivery-option,
 .insulation-option,
 .interior-option {
-  display: block;
+  display: flex; /* Возвращаем flex */
+  align-items: center; /* Выравниваем по центру */
   margin-bottom: 6px;
 }
 
@@ -629,22 +642,22 @@ fieldset legend {
 .insulation-option input,
 .interior-option input {
   margin-right: 8px;
-  vertical-align: top;
+  vertical-align: middle; /* Изменяем с top на middle */
 }
 
 .delivery-option .hint,
 .insulation-option .hint,
 .interior-option .hint {
-  margin-left: 24px;
-  margin-top: 1px;
+  margin-left: 8px; /* Уменьшаем отступ */
+  margin-top: 0;
   margin-bottom: 0;
   flex-shrink: 0;
 }
 
 /* Специальные стили для подсказок в чекбоксах */
 .checkbox-group .hint {
-  margin-left: 24px;
-  margin-top: 1px;
+  margin-left: 0; /* Убираем отступ */
+  margin-top: 0;
   margin-bottom: 0;
   font-size: 10px;
   line-height: 1.2;

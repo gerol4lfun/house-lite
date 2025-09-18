@@ -311,18 +311,18 @@ const ECONOMY_METAL_PRICES = {
    2. Конфиг для трёх типов строений
 ------------------------------------------------------------------ */
 
-// Конфигурация веранд на основе прайса (цены БЕЗ наценки 10%)
+// Конфигурация веранд на основе прайса (цены УЖЕ с наценкой 10%)
 const VERANDA_CONFIG = {
   // Хозблоки с верандами
   hoblok: {
-    '3x3': { main: '3x2', veranda: '3x1', price: 81000 },
-    '4x3': { main: '4x2', veranda: '4x1', price: 93000 },
-    '4x4': { main: '4x2', veranda: '4x2', price: 122000 },
-    '4x4_alt': { main: '4x3', veranda: '4x1', price: 135000 },
-    '5x3': { main: '5x2', veranda: '5x1', price: 117000 },
-    '5x4': { main: '5x2', veranda: '5x2', price: 129000 },
-    '5x5': { main: '5x3', veranda: '5x2', price: 189000 },
-    '5x5_alt': { main: '5x2.5', veranda: '5x2.5', price: 183000 },
+    '3x3': { main: '3x2', veranda: '3x1', price: 89100 }, // 81000 + 10%
+    '4x3': { main: '4x2', veranda: '4x1', price: 102300 }, // 93000 + 10%
+    '4x4': { main: '4x2', veranda: '4x2', price: 134200 }, // 122000 + 10%
+    '4x4_alt': { main: '4x3', veranda: '4x1', price: 148500 }, // 135000 + 10%
+    '5x3': { main: '5x2', veranda: '5x1', price: 128700 }, // 117000 + 10%
+    '5x4': { main: '5x2', veranda: '5x2', price: 141900 }, // 129000 + 10%
+    '5x5': { main: '5x3', veranda: '5x2', price: 207900 }, // 189000 + 10%
+    '5x5_alt': { main: '5x2.5', veranda: '5x2.5', price: 201300 }, // 183000 + 10%
     '6x3': { main: '6x2', veranda: '6x1', price: 128700 }, // 117000 + 10%
     '6x4': { main: '6x3', veranda: '6x1', price: 172700 }, // 157000 + 10%
     '6x4_alt': { main: '6x2', veranda: '6x2', price: 141900 }, // 129000 + 10%
@@ -333,14 +333,14 @@ const VERANDA_CONFIG = {
   },
   // Бытовки с верандами
   bytovka: {
-    '3x3': { main: '3x2', veranda: '3x1', price: 87000 },
-    '4x3': { main: '4x2', veranda: '4x1', price: 98000 },
-    '4x4': { main: '4x2', veranda: '4x2', price: 128000 },
-    '4x4_alt': { main: '4x3', veranda: '4x1', price: 139000 },
-    '5x3': { main: '5x2', veranda: '5x1', price: 121000 },
-    '5x4': { main: '5x2', veranda: '5x2', price: 132000 },
-    '5x5': { main: '5x3', veranda: '5x2', price: 214000 },
-    '5x5_alt': { main: '5x2.5', veranda: '5x2.5', price: 194000 },
+    '3x3': { main: '3x2', veranda: '3x1', price: 95700 }, // 87000 + 10%
+    '4x3': { main: '4x2', veranda: '4x1', price: 107800 }, // 98000 + 10%
+    '4x4': { main: '4x2', veranda: '4x2', price: 140800 }, // 128000 + 10%
+    '4x4_alt': { main: '4x3', veranda: '4x1', price: 152900 }, // 139000 + 10%
+    '5x3': { main: '5x2', veranda: '5x1', price: 133100 }, // 121000 + 10%
+    '5x4': { main: '5x2', veranda: '5x2', price: 145200 }, // 132000 + 10%
+    '5x5': { main: '5x3', veranda: '5x2', price: 235400 }, // 214000 + 10%
+    '5x5_alt': { main: '5x2.5', veranda: '5x2.5', price: 213400 }, // 194000 + 10%
     '6x3': { main: '6x2', veranda: '6x1', price: 136400 }, // 124000 + 10%
     '6x4': { main: '6x3', veranda: '6x1', price: 183700 }, // 167000 + 10%
     '6x4_alt': { main: '6x2', veranda: '6x2', price: 154000 }, // 140000 + 10%
@@ -1017,23 +1017,50 @@ const prevW = +inpWidth.value || null;
 const prevL = +inpLength.value || null;
 
 // 2. Перерисовываем список ширин
-inpWidth.innerHTML = cfg.widths.map(w => `<option>${w}</option>`).join("");
+let availableWidths, availableLengths;
 
-// 3. Возвращаем старое значение, если оно есть
-if (prevW && cfg.widths.includes(prevW)) {
-  inpWidth.value = prevW;
+if (cfg.isEconomy) {
+  // Для эконом-линейки берем только те размеры, что есть в basePrice
+  availableWidths = [...new Set(Object.keys(cfg.basePrice).map(key => key.split('x')[0]))].sort((a, b) => parseFloat(a) - parseFloat(b));
+  availableLengths = [...new Set(Object.keys(cfg.basePrice).map(key => key.split('x')[1]))].sort((a, b) => parseFloat(a) - parseFloat(b));
+  
+  inpWidth.innerHTML = availableWidths.map(w => `<option>${w}</option>`).join("");
+  inpLength.innerHTML = availableLengths.map(l => `<option>${l}</option>`).join("");
 } else {
-  inpWidth.value = cfg.widths[0]; // резерв по-умолчанию
+  // Для обычных строений используем все размеры
+  availableWidths = cfg.widths;
+  availableLengths = cfg.lengths;
+  
+  inpWidth.innerHTML = cfg.widths.map(w => `<option>${w}</option>`).join("");
+  inpLength.innerHTML = cfg.lengths.map(l => `<option>${l}</option>`).join("");
 }
 
-// 4. Перерисовываем список длин
-inpLength.innerHTML = cfg.lengths.map(l => `<option>${l}</option>`).join("");
+// 3. Возвращаем старое значение, если оно есть
+if (prevW && availableWidths.includes(prevW.toString())) {
+  inpWidth.value = prevW;
+} else {
+  inpWidth.value = availableWidths[0]; // резерв по-умолчанию
+}
 
 // 5. Возвращаем прежнюю длину, если возможно
-if (prevL && cfg.lengths.includes(prevL)) {
+if (prevL && availableLengths.includes(prevL.toString())) {
   inpLength.value = prevL;
 } else {
-  inpLength.value = cfg.lengths[0];
+  inpLength.value = availableLengths[0];
+}
+
+// 6. Добавляем слушатель для обновления длин при смене ширины
+if (cfg.isEconomy) {
+  // Блокируем длину до выбора ширины
+  inpLength.disabled = true;
+  inpLength.innerHTML = '<option>— выберите сначала ширину —</option>';
+  
+  inpWidth.addEventListener('change', updateAvailableLengths);
+  // Вызываем сразу для установки правильных длин
+  updateAvailableLengths();
+} else {
+  // Для обычных строений разблокируем длину
+  inpLength.disabled = false;
 }
 
 
@@ -1128,10 +1155,19 @@ if (isEconomy) {
   // Обновляем варианты веранд
   updateVerandaOptions();
   
-  // Обновляем веранды при смене размеров
-  [inpWidth, inpLength].forEach(el => {
-    el.addEventListener("change", updateVerandaOptions);
-  });
+  // Обновляем веранды и сваи при смене размеров (только для обычных строений)
+  if (!cfg.isEconomy) {
+    [inpWidth, inpLength].forEach(el => {
+      el.addEventListener("change", () => {
+        updateVerandaOptions();
+        updateSvaiRecommendation();
+      });
+      el.addEventListener("input", () => {
+        updateVerandaOptions();
+        updateSvaiRecommendation();
+      });
+    });
+  }
   
   // Скрываем опции утепления для хозблоков эконом
   if (type === 'hoblok_economy') {
@@ -2716,9 +2752,44 @@ out.innerHTML = lines.join("\n");
    9. Умная система веранд
 ------------------------------------------------------------------ */
 
+// Функция для обновления доступных длин при выборе ширины
+function updateAvailableLengths() {
+  const type = selType.value;
+  const cfg = CONFIG[type];
+  
+  if (!cfg.isEconomy) return;
+  
+  const selectedWidth = inpWidth.value;
+  if (!selectedWidth) return;
+  
+  // Находим все длины, которые есть в комбинации с выбранной шириной
+  const availableLengths = [...new Set(
+    Object.keys(cfg.basePrice)
+      .filter(key => key.startsWith(selectedWidth + 'x'))
+      .map(key => key.split('x')[1])
+  )].sort((a, b) => parseFloat(a) - parseFloat(b));
+  
+  // Сохраняем текущую длину
+  const currentLength = inpLength.value;
+  
+  // Обновляем выпадашку длин и разблокируем
+  inpLength.innerHTML = availableLengths.map(l => `<option>${l}</option>`).join("");
+  inpLength.disabled = false;
+  
+  // Устанавливаем длину
+  if (availableLengths.includes(currentLength)) {
+    inpLength.value = currentLength;
+  } else {
+    inpLength.value = availableLengths[0];
+  }
+  
+  // Обновляем веранды и сваи
+  updateVerandaOptions();
+  updateSvaiRecommendation();
+}
+
 // Функция для поиска подходящих веранд по размерам
 function findMatchingVerandas(width, length, type) {
-  const sizeKey = `${width}x${length}`;
   // Определяем тип для поиска в конфигурации веранд
   let verandaType;
   if (type === 'hoblok' || type === 'hoblok_economy') {
@@ -2730,31 +2801,20 @@ function findMatchingVerandas(width, length, type) {
   }
   
   const availableVerandas = VERANDA_CONFIG[verandaType] || {};
-  
   const matches = [];
   
-  // Ищем точные совпадения
+  // Ищем веранды, где основное помещение совпадает с выбранным размером
   for (const [key, config] of Object.entries(availableVerandas)) {
-    if (key === sizeKey) {
+    const [mainW, mainL] = config.main.split('x').map(Number);
+    
+    // Проверяем, подходит ли размер основного помещения
+    if (mainW === width && mainL === length) {
       matches.push({
         key: key,
         main: config.main,
         veranda: config.veranda,
         price: config.price,
         description: `${config.main} + веранда ${config.veranda}`
-      });
-    }
-  }
-  
-  // Ищем альтернативные варианты (с _alt)
-  for (const [key, config] of Object.entries(availableVerandas)) {
-    if (key === sizeKey + '_alt') {
-      matches.push({
-        key: key,
-        main: config.main,
-        veranda: config.veranda,
-        price: config.price,
-        description: `${config.main} + веранда ${config.veranda} (альтернатива)`
       });
     }
   }
