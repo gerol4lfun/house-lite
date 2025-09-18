@@ -1,16 +1,27 @@
 /* === 0. Пользователи ===================== */
-const USERS = [
-  {login:"admin",     password:"NewAdmPassword123!"},
-  {login:"Юлия",      password:"NewYuliaPass456!"},
-  {login:"Руслан",    password:"NewRuslanPass789!"},
-  {login:"Ольга",     password:"NewOlgaPass321!"},
-  {login:"Екатерина", password:"NewEkaterinaPass654!"},
-  {login:"Manager6",  password:"NewManager6Pass987!"},
-  {login:"Manager7",  password:"NewManager7Pass135!"},
-  {login:"Manager8",  password:"NewManager8Pass246!"},
-  {login:"Manager9",  password:"NewManager9Pass369!"},
-  {login:"Manager10", password:"NewManager10Pass147!"}
-];
+// Получаем пользователей (сначала из localStorage, потом дефолтные)
+function getUsers() {
+  const saved = localStorage.getItem('manager_passwords');
+  if (saved) {
+    return JSON.parse(saved);
+  }
+  
+  // Дефолтные пользователи
+  return [
+    {login:"admin",     password:"NewAdmPassword123!", isAdmin: true},
+    {login:"Юлия",      password:"NewYuliaPass456!"},
+    {login:"Руслан",    password:"NewRuslanPass789!"},
+    {login:"Ольга",     password:"NewOlgaPass321!"},
+    {login:"Екатерина", password:"NewEkaterinaPass654!"},
+    {login:"Manager6",  password:"NewManager6Pass987!"},
+    {login:"Manager7",  password:"NewManager7Pass135!"},
+    {login:"Manager8",  password:"NewManager8Pass246!"},
+    {login:"Manager9",  password:"NewManager9Pass369!"},
+    {login:"Manager10", password:"NewManager10Pass147!"}
+  ];
+}
+
+const USERS = getUsers();
 
 /* === 1. Аутентификация ==================== */
 function authenticate(){
@@ -18,7 +29,17 @@ function authenticate(){
   const password = document.getElementById('password').value.trim();
   const errBox   = document.getElementById('auth-error');
 
-  const ok = USERS.some(u=>u.login===login && u.password===password);
+  // Проверяем флаг принудительного выхода
+  const forceLogoutTime = localStorage.getItem('force_logout');
+  if (forceLogoutTime) {
+    localStorage.removeItem('force_logout');
+    alert('🔐 Ваша сессия была завершена администратором. Пожалуйста, войдите заново.');
+    return;
+  }
+
+  // Получаем актуальный список пользователей
+  const users = getUsers();
+  const ok = users.some(u=>u.login===login && u.password===password);
   if(!ok){
     errBox.style.display='block';
     return;
@@ -35,6 +56,18 @@ function authenticate(){
   handleTypeChange();       // размеры и т.п.
 }
 
+// Проверяем принудительный выход при загрузке страницы
+function checkForceLogoutOnLoad() {
+  const forceLogoutTime = localStorage.getItem('force_logout');
+  if (forceLogoutTime) {
+    localStorage.removeItem('force_logout');
+    localStorage.removeItem('houseCalcUser');
+    alert('🔐 Ваша сессия была завершена администратором. Пожалуйста, войдите заново.');
+    document.getElementById('auth-container').classList.remove('hidden');
+    document.getElementById('calc-container').classList.add('hidden');
+  }
+}
+
 /* === 2. Выход ============================= */
 function logout(){
   localStorage.removeItem('houseCalcUser');
@@ -43,6 +76,9 @@ function logout(){
 
 /* === 3. Автовход при перезагрузке ========= */
 window.addEventListener('DOMContentLoaded', ()=>{
+  // Проверяем принудительный выход
+  checkForceLogoutOnLoad();
+  
   if(localStorage.getItem('houseCalcUser')){
     document.getElementById('auth-container').classList.add('hidden');
     document.getElementById('calc-container').classList.remove('hidden');
@@ -118,7 +154,8 @@ const DELIV = {
   "8x8": 300, "9x8": 300                // большие
 };
 const MAX_KM = 250;      // лимит: 250 км от МКАД
-const DEPOT = [55.621800, 37.441432];   // точка отгрузки
+const DEPOT = [55.621800, 37.441432];   // точка отгрузки (обычная линейка)
+const DEPOT_ECONOMY = [55.443806, 37.296654];   // точка отгрузки (эконом-линейка)
 
 // Опции по площади
 const INSUL   = { roll100:550, min150:2000, rock100:1000, basalt150:4000 };
@@ -187,8 +224,15 @@ const PART_TITLE = {
   p3: "Перегородка двусторонняя с утеплением 100 мм"
 };
 
-// Сваи
-const PILES = {
+// Сваи для обычных линеек (без наценки)
+const PILES_STANDARD = {
+  "1.5×76":3000, "2.0×76":3600, "2.5×76":3700, "3.0×76":4000,
+  "2.0×89":3600, "2.5×89":4000, "3.0×89":4300,
+  "2.0×108":4300, "2.5×108":4700, "3.0×108":5000
+};
+
+// Сваи для эконом-линеек (с 10% наценкой)
+const PILES_ECONOMY = {
   "1.5×76":3300, "2.0×76":4000, "2.5×76":4100, "3.0×76":4450,
   "2.0×89":4000, "2.5×89":4400, "3.0×89":4750,
   "2.0×108":4800, "2.5×108":5200, "3.0×108":5500
@@ -240,7 +284,7 @@ function getPileCount(type, w, l) {
 
 
 
-// Окна ПВХ / двери ПВХ
+// Окна ПВХ / двери ПВХ (стандартная линейка)
 const WINDOWS = {
   "50×50":{1:5500, 2:7000},
   "60×90":{1:7500},
@@ -279,9 +323,77 @@ const METAL_PRICES = {
   thermoLux:  35000    // Термо Люкс
 };
 
+// Цены для эконом-линейки (из прайса + 10%)
+const ECONOMY_WINDOWS = {
+  // Окна ПВХ (из прайса + 10%)
+  "40×40": {1: 4950},      // 4500 + 10%
+  "60×90": {1: 6050},      // 5500 + 10%
+  "970×1160": {1: 10450},  // 9500 + 10%
+  "1500×1800": {1: 18150}, // 16500 + 10%
+  "1800×1800": {1: 21450}, // 19500 + 10%
+  "90×205 дверь ПВХ": {2: 38500} // 35000 + 10%
+};
+
+const ECONOMY_WOOD_PRICES = {
+  win: {                // окна деревянные (из прайса + 10%)
+    "55×80": 1100,      // 1000 + 10%
+    "30×30": 550        // 500 + 10%
+  },
+  door: {               // двери (из прайса + 10%)
+    wooden_set: 3300,      // деревянная наборная 75×175 (3000 + 10%)
+    wooden_swing: 5500,    // распашная (ширина 160) (5000 + 10%)
+    interior_pine: 13200   // межкомнатная сосновая (12000 + 10%)
+  }
+};
+
+const ECONOMY_METAL_PRICES = {
+  metal_rf: 14300       // металлическая РФ (13000 + 10%)
+};
+
 /* ------------------------------------------------------------------
    2. Конфиг для трёх типов строений
 ------------------------------------------------------------------ */
+
+// Конфигурация веранд на основе прайса (цены УЖЕ с наценкой 10%)
+const VERANDA_CONFIG = {
+  // Хозблоки с верандами
+  hoblok: {
+    '3x3': { main: '3x2', veranda: '3x1', price: 89100 }, // 81000 + 10%
+    '4x3': { main: '4x2', veranda: '4x1', price: 102300 }, // 93000 + 10%
+    '4x4': { main: '4x2', veranda: '4x2', price: 134200 }, // 122000 + 10%
+    '4x4_alt': { main: '4x3', veranda: '4x1', price: 148500 }, // 135000 + 10%
+    '5x3': { main: '5x2', veranda: '5x1', price: 128700 }, // 117000 + 10%
+    '5x4': { main: '5x2', veranda: '5x2', price: 141900 }, // 129000 + 10%
+    '5x5': { main: '5x3', veranda: '5x2', price: 207900 }, // 189000 + 10%
+    '5x5_alt': { main: '5x2.5', veranda: '5x2.5', price: 201300 }, // 183000 + 10%
+    '6x3': { main: '6x2', veranda: '6x1', price: 128700 }, // 117000 + 10%
+    '6x4': { main: '6x3', veranda: '6x1', price: 172700 }, // 157000 + 10%
+    '6x4_alt': { main: '6x2', veranda: '6x2', price: 141900 }, // 129000 + 10%
+    '6x4.5': { main: '6x2.5', veranda: '6x2', price: 213400 }, // 194000 + 10%
+    '6x5': { main: '6x3', veranda: '6x2', price: 221100 }, // 201000 + 10%
+    '6x6': { main: '6x3', veranda: '6x3', price: 258500 }, // 235000 + 10%
+    '6x6_alt': { main: '6x4', veranda: '6x2', price: 323400 } // 294000 + 10%
+  },
+  // Бытовки с верандами
+  bytovka: {
+    '3x3': { main: '3x2', veranda: '3x1', price: 95700 }, // 87000 + 10%
+    '4x3': { main: '4x2', veranda: '4x1', price: 107800 }, // 98000 + 10%
+    '4x4': { main: '4x2', veranda: '4x2', price: 140800 }, // 128000 + 10%
+    '4x4_alt': { main: '4x3', veranda: '4x1', price: 152900 }, // 139000 + 10%
+    '5x3': { main: '5x2', veranda: '5x1', price: 133100 }, // 121000 + 10%
+    '5x4': { main: '5x2', veranda: '5x2', price: 145200 }, // 132000 + 10%
+    '5x5': { main: '5x3', veranda: '5x2', price: 235400 }, // 214000 + 10%
+    '5x5_alt': { main: '5x2.5', veranda: '5x2.5', price: 213400 }, // 194000 + 10%
+    '6x3': { main: '6x2', veranda: '6x1', price: 136400 }, // 124000 + 10%
+    '6x4': { main: '6x3', veranda: '6x1', price: 183700 }, // 167000 + 10%
+    '6x4_alt': { main: '6x2', veranda: '6x2', price: 154000 }, // 140000 + 10%
+    '6x4.5': { main: '6x2.5', veranda: '6x2', price: 225500 }, // 205000 + 10%
+    '6x5': { main: '6x3', veranda: '6x2', price: 232100 }, // 211000 + 10%
+    '6x6': { main: '6x3', veranda: '6x3', price: 271700 }, // 247000 + 10%
+    '6x6_alt': { main: '6x4', veranda: '6x2', price: 341000 } // 310000 + 10%
+  }
+};
+
 const CONFIG = {
   hoblok: {
     widths:[2,2.1,2.3,2.5,3,4],       // добавили 2.1 и 2.3; убрали 5 и 6
@@ -291,7 +403,8 @@ const CONFIG = {
       "3x3":68200,"4x3":82500,"5x3":93500,"6x3":99000
     },
     delivery:{ perKm1:80, perKm2:140, min:5000 },
-    verandaPrice:7500
+    verandaPrice:7500,
+    isEconomy: false
   },
   bytovka: {
     widths:[2,2.1,2.3,2.5,3,4],       // добавили 2.1 и 2.3; убрали 5 и 6
@@ -302,13 +415,100 @@ const CONFIG = {
       "3x3":95700,"4x3":108900,"5x3":136400,"6x3":139700
     },
     delivery:{ perKm1:100, perKm2:180, min:6000 },
-    verandaPrice:7500
+    verandaPrice:7500,
+    isEconomy: false
   },
   house: {
     widths:[6,7,8,9,10],
     lengths:[4,5,6,7,8,9,10],
     rates: RATE,
-    deliv: DELIV
+    deliv: DELIV,
+    isEconomy: false
+  },
+  // НОВАЯ ЭКОНОМ-ЛИНЕЙКА (цены из прайса)
+  hoblok_economy: {
+    widths:[2,2.2,2.5,3,4,5,6,7],
+    lengths:[2,2.2,2.5,2.7,3,4,5,6],
+    basePrice:{
+      // Хозблоки (внутри без отделки и утепления; 1 окно) - цены из прайса + 10%
+      "2x2":30800,"2x2.2":33000,"2x2.5":48400,
+      "3x2":40700,"3x2.2":44000,"3x2.5":56100,"3x3":64900,
+      "4x2":46200,"4x2.2":49500,"4x2.5":64900,"4x3":77000,"4x4":116600,
+      "5x2":51150,"5x2.2":54450,"5x2.5":73700,"5x3":97900,"5x4":152900,
+      "6x2":54450,"6x2.2":56650,"6x2.5":78100,"6x2.7":96800,"6x3":100100,"6x4":158400,
+      "7x2":78100,"7x2.2":82500,"7x2.5":93500,"7x3":118800
+    },
+    // Хозблоки с верандой спереди (цены из прайса + 10%)
+    verandaPrice:{
+      "3x3":89100,"4x3":102300,"4x4":134200,"4x4_alt":148500,
+      "5x3":128700,"5x4":141900,"5x5":207900,"5x5_alt":201300,
+      "6x3":128700,"6x4":172700,"6x4_alt":141900,"6x4.5":213400,
+      "6x5":221100,"6x6":258500,"6x6_alt":323400
+    },
+    delivery:{ perKm:130, min:7000, assembly:7000 },
+    // Сваи для эконом-линейки
+    svai: {
+      // Рекомендуемое количество свай по размерам (минимум 6 штук)
+      recommendations: {
+        "2x2": 6, "2x2.2": 6, "2x2.5": 6,
+        "3x2": 6, "3x2.2": 6, "3x2.5": 6, "3x3": 6,
+        "4x2": 6, "4x2.2": 6, "4x2.5": 6, "4x3": 6, "4x4": 6,
+        "5x2": 6, "5x2.2": 6, "5x2.5": 9, "5x3": 9, "5x4": 9,
+        "6x2": 6, "6x2.2": 6, "6x2.5": 9, "6x2.7": 9, "6x3": 9, "6x4": 9,
+        "7x2": 6, "7x2.2": 6, "7x2.5": 9, "7x3": 9
+      },
+      // Цены на сваи
+      prices: {
+        "76x150": 4400,  // Ø76×1,5 м
+        "76x200": 4900,  // Ø76×2,0 м
+        "89x200": 5500,  // Ø89×2,0 м
+        "89x250": 5900,  // Ø89×2,5 м
+        "89x300": 6500   // Ø89×3,0 м
+      }
+    },
+    isEconomy: true
+  },
+bytovka_economy: {
+  widths:[2,2.2,2.5,3,4,5,6,7],
+  lengths:[2,2.2,2.4,2.5,2.7,3,4,5,6],
+  basePrice:{
+    // Бытовки (утепление 50 мм стены+пол; внутри оргалит; 1 окно) - ЦЕНЫ С НАЦЕНКОЙ 10%
+    "2x2":37400,"2x2.2":40700,"2x2.5":53900,
+    "3x2":47850,"3x2.2":51150,"3x2.5":67100,"3x3":72600,
+    "4x2":54450,"4x2.2":57750,"4x2.5":73700,"4x3":81400,"4x4":127600,
+    "5x2":57200,"5x2.2":60500,"5x2.5":80300,"5x3":105600,"5x4":159500,
+    "6x2":62590,"6x2.2":65450,"6x2.5":84150,"6x2.7":104500,"6x3":113300,"6x4":166100,
+    "7x2":82500,"7x2.2":88000,"7x2.4":95700,"7x2.5":99000,"7x3":124300
+  },
+  // Бытовки с верандой спереди (с наценкой 10%)
+  verandaPrice:{
+    "3x3":95700,"4x3":107800,"4x4":140800,"4x4_alt":152900,
+    "5x3":133100,"5x4":145200,"5x5":235400,"5x5_alt":213400,
+    "6x3":136400,"6x4":183700,"6x4_alt":154000,"6x4.5":225500,
+    "6x5":232100,"6x6":271700,"6x6_alt":341000
+  },
+  delivery:{ perKm:130, min:7000, assembly:7000 },
+  // Сваи для эконом-линейки - ТОЧНЫЕ РЕКОМЕНДАЦИИ ИЗ ПРАЙСА
+  svai: {
+    // Рекомендуемое количество свай по размерам (минимум 6 штук)
+    recommendations: {
+      "2x2": 6, "2x2.2": 6, "2x2.5": 6,
+      "3x2": 6, "3x2.2": 6, "3x2.5": 6, "3x3": 6,
+      "4x2": 6, "4x2.2": 6, "4x2.5": 6, "4x3": 6, "4x4": 6,
+      "5x2": 6, "5x2.2": 6, "5x2.5": 9, "5x3": 9, "5x4": 9,
+      "6x2": 6, "6x2.2": 6, "6x2.5": 9, "6x2.7": 9, "6x3": 9, "6x4": 9,
+      "7x2": 6, "7x2.2": 6, "7x2.4": 6, "7x2.5": 9, "7x3": 9
+    },
+    // Цены на сваи (с наценкой 10%)
+    prices: {
+      "76x150": 4840,  // Ø76×1,5 м
+      "76x200": 5390,  // Ø76×2,0 м
+      "89x200": 6050,  // Ø89×2,0 м
+      "89x250": 6490,  // Ø89×2,5 м
+      "89x300": 7150   // Ø89×3,0 м
+    }
+  },
+  isEconomy: true
   }
 };
 // цена 1 м² для нестандартных размеров
@@ -317,6 +517,202 @@ const NONSTD_RATE = {
   hoblok:  6050    // ₽/м²
 };
 
+// ДОПОЛНИТЕЛЬНЫЕ ОПЦИИ ДЛЯ ЭКОНОМ-ЛИНЕЙКИ (ЦЕНЫ С НАЦЕНКОЙ 10%)
+const ECONOMY_EXTRAS = {
+  // Утепление потолка 50 мм (фикс-цены по размерам с наценкой 10%)
+  ceilingInsulation: {
+    "2x2": 1100, "2x2.2": 1100, "2x2.5": 1650,
+    "3x2": 2200, "3x2.2": 2200, "3x2.5": 2750, "3x3": 2750,
+    "4x2": 3300, "4x2.2": 3300, "4x2.5": 3850, "4x3": 3850, "4x4": 3850,
+    "5x2": 4400, "5x2.2": 4400, "5x2.5": 4400, "5x3": 4400, "5x4": 4400,
+    "6x2": 4400, "6x2.2": 4400, "6x2.5": 4950, "6x3": 4950, "6x4": 4950,
+    "7x2": 5500, "7x2.2": 5500, "7x2.5": 6050, "7x3": 6050
+  },
+  
+  // Перегородки (с дверью наборной или глухие) - с наценкой 10%
+  partitions: {
+    // Оргалит
+    organlit: { "2": 6600, "2.2": 6600, "2.5": 7700, "3": 8250 },
+    // ОСП-9
+    osb: { "2": 7700, "2.2": 7700, "2.5": 8800, "3": 9900 },
+    // Вагонка "С"
+    vagonka: { "2": 13200, "2.2": 13200, "2.5": 15950, "3": 16500 },
+    // Для хозблоков (односторонняя, без двери)
+    hoblok: { "2": 5500, "2.2": 5500, "2.5": 7150, "3": 8250 }
+  },
+  
+  // Внутренняя отделка (стены + потолок, по всему объёму) - с наценкой 10%
+  interiorFinish: {
+    // ОСП-9
+    osb: {
+      "2x2": 7700, "2x2.2": 7700, "2x2.5": 9350,
+      "3x2": 9900, "3x2.2": 9900, "3x2.5": 12100, "3x3": 14850,
+      "4x2": 12650, "4x2.2": 12650, "4x2.5": 14850, "4x3": 16500, "4x4": 16500,
+      "5x2": 14300, "5x2.2": 14300, "5x2.5": 16500, "5x3": 19800, "5x4": 22000,
+      "6x2": 16500, "6x2.2": 16500, "6x2.5": 18700, "6x3": 20900, "6x4": 27500,
+      "7x2": 19250, "7x2.2": 19250, "7x2.5": 20350, "7x3": 26400
+    },
+    // Вагонка "С"
+    vagonka: {
+      "2x2": 19800, "2x2.2": 19800, "2x2.5": 23100,
+      "3x2": 25300, "3x2.2": 25300, "3x2.5": 28600, "3x3": 30800,
+      "4x2": 30800, "4x2.2": 30800, "4x2.5": 34650, "4x3": 36300, "4x4": 36300,
+      "5x2": 31900, "5x2.2": 31900, "5x2.5": 36300, "5x3": 39600, "5x4": 44000,
+      "6x2": 33000, "6x2.2": 33000, "6x2.5": 38500, "6x3": 42900, "6x4": 52800,
+      "7x2": 38500, "7x2.2": 38500, "7x2.5": 43450, "7x3": 48400
+    }
+  },
+  
+  // Окна / двери (дополнительные) - с наценкой 10%
+  windowsDoors: {
+    // Окна деревянные
+    woodWindows: { "55x80": 1100, "30x30": 550 },
+    // Окна ПВХ (только из прайса)
+    pvcWindows: { "40x40": 4950, "60x90": 6050, "970x1160": 10450, "1500x1800": 18150, "1800x1800": 21450 },
+    // Двери (только из прайса)
+    woodDoors: { 
+      "75x175": 3300,      // деревянная наборная 75×175
+      "160": 5500          // распашная (ширина 160)
+    },
+    metalDoors: {
+      "rf": 14300          // металлическая РФ
+    },
+    interiorDoors: {
+      "pine": 13200        // межкомнатная сосновая
+    }
+  },
+  
+  // Прочее - с наценкой 10%
+  misc: {
+    "steps": 2200,           // Ступени
+    "ramp_75": 3300,         // пандус 75 см
+    "ramp_160_180": 5500,    // пандус 160–180 см
+    "block_20x20x40": 385,   // блок 20×20×40 (за шт)
+    "plate_50x50": 495       // плита 50×50 (за шт)
+  },
+  
+  // Утепление 100 мм (стены/пол/потолок; каркас 40×100) - с наценкой 10%
+  insulation100: {
+    "2x2": 11000, "2x2.2": 11000, "2x2.5": 13200,
+    "3x2": 12100, "3x2.2": 12100, "3x2.5": 14300, "3x3": 14300,
+    "4x2": 13200, "4x2.2": 13200, "4x2.5": 15400, "4x3": 15400, "4x4": 15400,
+    "5x2": 14300, "5x2.2": 14300, "5x2.5": 16500, "5x3": 16500, "5x4": 16500,
+    "6x2": 15400, "6x2.2": 15400, "6x2.5": 17600, "6x3": 17600, "6x4": 17600,
+    "7x2": 16500, "7x2.2": 16500, "7x2.5": 18700, "7x3": 18700
+  },
+  
+  // Огнебиозащита - с наценкой 10%
+  fireProtection: {
+    // Пол
+    floor: {
+      "2x2": 1650, "2x2.2": 1650, "2x2.5": 1650,
+      "3x2": 2200, "3x2.2": 2200, "3x2.5": 2200, "3x3": 2200,
+      "4x2": 2750, "4x2.2": 2750, "4x2.5": 2750, "4x3": 2750, "4x4": 4400,
+      "5x2": 3300, "5x2.2": 3300, "5x2.5": 3300, "5x3": 3300, "5x4": 4400,
+      "6x2": 3850, "6x2.2": 3850, "6x2.5": 3850, "6x3": 3850, "6x4": 5500,
+      "7x2": 4950, "7x2.2": 4950, "7x2.5": 4950, "7x3": 4950
+    },
+    // Каркас
+    frame: {
+      "2x2": 3850, "2x2.2": 3850, "2x2.5": 3850,
+      "3x2": 4400, "3x2.2": 4400, "3x2.5": 4400, "3x3": 4400,
+      "4x2": 4950, "4x2.2": 4950, "4x2.5": 4950, "4x3": 4950, "4x4": 0, // в подарок
+      "5x2": 5500, "5x2.2": 5500, "5x2.5": 5500, "5x3": 5500, "5x4": 0, // в подарок
+      "6x2": 5500, "6x2.2": 5500, "6x2.5": 5500, "6x3": 5500, "6x4": 0, // в подарок
+      "7x2": 6600, "7x2.2": 6600, "7x2.5": 6600, "7x3": 6600
+    }
+  },
+  
+  // Паро- и ветроизоляция (по кругу) - с наценкой 10%
+  vaporBarrier: {
+    "2x2": 2750, "2x2.2": 2750, "2x2.5": 2750,
+    "3x2": 4400, "3x2.2": 4400, "3x2.5": 4400, "3x3": 4400,
+    "4x2": 5500, "4x2.2": 5500, "4x2.5": 5500, "4x3": 5500, "4x4": 5500,
+    "5x2": 6050, "5x2.2": 6050, "5x2.5": 6050, "5x3": 6050, "5x4": 6050,
+    "6x2": 7150, "6x2.2": 7150, "6x2.5": 7150, "6x3": 7150, "6x4": 7150
+  }
+};
+
+
+// Функция для заполнения свай для эконом-линейки
+function populateEconomyPileOptions() {
+  const type = selType.value;
+  const cfg = CONFIG[type];
+  console.log('populateEconomyPileOptions called for type:', type, 'isEconomy:', cfg.isEconomy);
+  if (!cfg.isEconomy) return;
+  
+  const w = parseFloat(inpWidth.value) || 0;
+  const l = parseFloat(inpLength.value) || 0;
+  const sizeKey = `${w}x${l}`;
+  
+  const recommendation = cfg.svai.recommendations[sizeKey];
+  const selEconomySvaiType = document.getElementById('selEconomySvaiType');
+  
+  if (selEconomySvaiType) {
+    console.log('populateEconomyPileOptions: clearing and filling selEconomySvaiType for economy type:', type);
+    console.log('populateEconomyPileOptions: recommendation:', recommendation);
+    
+    // Полностью очищаем и заполняем заново
+    selEconomySvaiType.innerHTML = '';
+    
+    // Добавляем опцию "нет"
+    selEconomySvaiType.innerHTML = '<option value="">— нет —</option>';
+    
+    if (recommendation) {
+      // Простые цены из прайса с наценкой 10%
+      const prices = [
+        { key: "76x150", price: 4840, text: "Ø76×1,5 м" },
+        { key: "76x200", price: 5390, text: "Ø76×2,0 м" },
+        { key: "89x200", price: 6050, text: "Ø89×2,0 м" },
+        { key: "89x250", price: 6490, text: "Ø89×2,5 м" },
+        { key: "89x300", price: 7150, text: "Ø89×3,0 м" }
+      ];
+      
+      prices.forEach(item => {
+        const totalPrice = item.price * recommendation;
+        selEconomySvaiType.innerHTML += 
+          `<option value="${item.key}">${item.text} — ${item.price.toLocaleString()} ₽/шт × ${recommendation} шт = ${totalPrice.toLocaleString()} ₽</option>`;
+      });
+    }
+    
+    console.log('populateEconomyPileOptions: final options count:', selEconomySvaiType.options.length);
+    console.log('populateEconomyPileOptions: all options:', Array.from(selEconomySvaiType.options).map(opt => opt.textContent));
+    
+    // Проверяем, что опции действительно добавились
+    setTimeout(() => {
+      console.log('populateEconomyPileOptions: AFTER 100ms - options count:', selEconomySvaiType.options.length);
+      console.log('populateEconomyPileOptions: AFTER 100ms - all options:', Array.from(selEconomySvaiType.options).map(opt => opt.textContent));
+    }, 100);
+  }
+}
+
+// Функция для обновления рекомендаций по сваям для эконом-линейки
+function updateSvaiRecommendation() {
+  const type = selType.value;
+  const cfg = CONFIG[type];
+  console.log('updateSvaiRecommendation called for type:', type, 'isEconomy:', cfg.isEconomy);
+  if (!cfg.isEconomy) return;
+  
+  const w = parseFloat(inpWidth.value) || 0;
+  const l = parseFloat(inpLength.value) || 0;
+  const sizeKey = `${w}x${l}`;
+  
+  const recommendation = cfg.svai.recommendations[sizeKey];
+  const selSvaiType = document.getElementById('selSvaiType');
+  if (selSvaiType && recommendation) {
+    // Обновляем опции свай с количеством для эконом-линейки
+    const options = selSvaiType.querySelectorAll('option');
+    options.forEach(option => {
+      if (option.value) {
+        const price = option.textContent.match(/— (\d+[\s,]*\d*) ₽/);
+        if (price) {
+          const totalPrice = parseInt(price[1].replace(/\s/g, '')) * recommendation;
+          option.textContent = option.textContent.replace(/— \d+[\s,]*\d* ₽/, `— ${totalPrice.toLocaleString()} ₽ (${recommendation} шт)`);
+        }
+      }
+    });
+  }
+}
 
 // ──────────────────────────────────────────────────────────────────
 // 3. Жёсткие профили отделки по типу и крыше
@@ -418,7 +814,7 @@ const selInRep     = document.getElementById("selInRep");
 const selOutRep    = document.getElementById("selOutRep");
 const selFloor   = document.getElementById("selFloor");   // выпадающий список пола
 const inpExtraH  = document.getElementById("inpExtraH");  // поле высоты
-const chkMouse     = document.getElementById("chkMouse");
+const chkMouse     = document.getElementById("chkMouseNew");
 
 const selPart      = document.getElementById("selPart");
 const inpPartLen   = document.getElementById("inpPartLen");
@@ -440,11 +836,57 @@ const btnClearAddr = document.getElementById("btnClearAddr");
    4. Инициализация Яндекс.Карт и обработчики
 ------------------------------------------------------------------ */
 let map;
+
+// Инициализация карты
+function initMap() {
+  const mapElement = document.getElementById('map');
+  if (!mapElement) return;
+  
+  // Показываем сообщение о загрузке
+  mapElement.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">Загрузка карты...</div>';
+  
+  // Проверяем загрузку API
+  const checkAPI = () => {
+    if (typeof ymaps !== 'undefined') {
+      try {
 ymaps.ready(() => {
+          // Очищаем контейнер
+          mapElement.innerHTML = '';
+          
+          // Создаем карту
   map = new ymaps.Map("map", {
-    center:DEPOT,
-    zoom:9
-  });
+            center: DEPOT,
+            zoom: 9,
+            controls: ['zoomControl', 'typeSelector', 'fullscreenControl']
+          });
+          
+          // Добавляем маркер базы
+          const baseMarker = new ymaps.Placemark(DEPOT, {
+            balloonContent: 'Наша база'
+          }, {
+            preset: 'islands#redDotIcon'
+          });
+          map.geoObjects.add(baseMarker);
+        });
+      } catch (error) {
+        console.error('Ошибка инициализации карты:', error);
+        mapElement.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">Карта временно недоступна</div>';
+      }
+    } else {
+      // Если API не загружен, ждем еще
+      setTimeout(checkAPI, 1000);
+    }
+  };
+  
+  // Начинаем проверку
+  setTimeout(checkAPI, 1000);
+}
+
+// Инициализируем карту
+initMap();
+
+// Инициализация веранд при загрузке
+updateVerandaOptions();
   // ─── Подсказки адреса, как в тепличном калькуляторе ───────────────────────────
 const addrInput   = document.getElementById('inpAddr');
 const suggBox     = document.getElementById('suggestions');
@@ -453,9 +895,11 @@ addrInput.addEventListener('input', () => {
     const q = addrInput.value.trim();
     if (q.length < 3) {            // меньше 3-х символов — ничего не показываем
         suggBox.style.display = 'none';
+        calculate(); // Обновляем КП при изменении адреса
         return;
     }
 
+    if (typeof ymaps !== 'undefined') {
     ymaps.geocode(q, { results: 5 }).then(res => {
         const items = res.geoObjects.toArray();
         if (!items.length) {
@@ -478,6 +922,7 @@ addrInput.addEventListener('input', () => {
             div.onclick = () => {
                 addrInput.value      = addr;      // вставляем выбранный адрес
                 suggBox.style.display = 'none';   // прячем подсказки
+                calculate(); // Обновляем КП при выборе адреса
              };
 
             suggBox.appendChild(div);
@@ -486,6 +931,7 @@ addrInput.addEventListener('input', () => {
         console.error('geocode error', err);
         suggBox.style.display = 'none';
     });
+    }
 });
 
 // клик мимо блока — закрываем подсказки
@@ -496,17 +942,170 @@ document.addEventListener('click', e => {
 
 
   // слушаем события
-  selType.addEventListener("change", handleTypeChange);
-  document.querySelectorAll('input[name="roof"]').forEach(r=>r.addEventListener("change", handleTypeChange));
+  selType.addEventListener("change", function() {
+    handleTypeChange();
+    calculate(); // Обновляем КП при изменении типа строения
+  });
+  document.querySelectorAll('input[name="roof"]').forEach(r => {
+    r.addEventListener("change", function() {
+      handleTypeChange();
+      calculate(); // Обновляем КП при изменении типа крыши
+    });
+  });
+  
+  // Обработчик для окон/дверей стандартной линейки
+  if (btnAddWindow) {
   btnAddWindow.addEventListener("click", addWindowRow);
-  [inpWidth, inpLength].forEach(el => el.addEventListener("change", populatePileOptions));
+  }
+  
+  // Обработчик для эконом-линейки
+  const btnAddWindowEconomy = document.getElementById("btnAddWindowEconomy");
+  if (btnAddWindowEconomy) {
+    btnAddWindowEconomy.addEventListener("click", addWindowRowEconomy);
+  }
+  
+  // Обработчик для перегородок эконом-линейки
+  const btnAddPartition = document.getElementById("btnAddPartition");
+  if (btnAddPartition) {
+    btnAddPartition.addEventListener("click", addPartitionRow);
+  }
+  
+  [inpWidth, inpLength].forEach(el => {
+    el.addEventListener("change", () => {
+      const type = selType.value;
+      const cfg = CONFIG[type];
+      if (!cfg.isEconomy) {
+        populatePileOptions();
+      } else {
+        populateEconomyPileOptions();
+      }
+      updateVerandaOptions();
+      calculate(); // Обновляем КП при изменении размеров
+    });
+  });
+  
+  // Обработчик для типа доставки в эконом-линейке
+  document.addEventListener('change', function(e) {
+    if (e.target.name === 'deliveryType') {
+      // Логика доставки обрабатывается в функции calculate()
+      // Здесь можно добавить визуальные изменения если нужно
+    }
+  });
+  
   btnCalc.addEventListener("click", calculate);
   btnReset.addEventListener("click", resetFilters);
-btnClearAddr.addEventListener("click", clearDelivery);
+  
+  // Обработчики для чекбоксов
+  const chkMouseNew = document.getElementById('chkMouseNew');
+  if (chkMouseNew) {
+    chkMouseNew.addEventListener("change", calculate);
+  }
+  chkRamp.addEventListener("change", calculate);
+  
+  // Обработчики для селектов и полей
+  selFloor.addEventListener("change", calculate);
+  inpExtraH.addEventListener("change", calculate);
+  inpExtraH.addEventListener("input", calculate);
+
+  // Обработчики для всех селектов (используем уже объявленные переменные)
+  if (selInsul) selInsul.addEventListener("change", calculate);
+  if (selRoofMat) selRoofMat.addEventListener("change", calculate);
+  
+  if (selInRep) selInRep.addEventListener("change", calculate);
+  if (selOutRep) selOutRep.addEventListener("change", calculate);
+  
+  const chkInVer = document.getElementById('chkInVer');
+  const verWidth = document.getElementById('verWidth');
+  const verDepth = document.getElementById('verDepth');
+  const verRoofType = document.querySelectorAll('input[name="verRoofType"]');
+  const deliveryType = document.querySelectorAll('input[name="deliveryType"]');
+
+  if (chkInVer) chkInVer.addEventListener("change", calculate);
+  if (verWidth) {
+    verWidth.addEventListener("change", calculate);
+    verWidth.addEventListener("input", calculate);
+  }
+  if (verDepth) {
+    verDepth.addEventListener("change", calculate);
+    verDepth.addEventListener("input", calculate);
+  }
+  if (verRoofType.length > 0) {
+    verRoofType.forEach(radio => radio.addEventListener("change", calculate));
+  }
+  if (deliveryType.length > 0) {
+    deliveryType.forEach(radio => radio.addEventListener("change", calculate));
+  }
+
+  // Обработчики для перегородок стандартной линейки
+  const selPartitionType = document.getElementById('selPartitionType');
+  const inpPartitionLength = document.getElementById('inpPartitionLength');
+  if (selPartitionType) selPartitionType.addEventListener("change", calculate);
+  if (inpPartitionLength) {
+    inpPartitionLength.addEventListener("change", calculate);
+    inpPartitionLength.addEventListener("input", calculate);
+  }
+  
+  // Обработчики для свай
+  const selSvaiType = document.getElementById('selSvaiType');
+  if (selSvaiType) selSvaiType.addEventListener("change", calculate);
+  if (selEconomySvaiType) selEconomySvaiType.addEventListener("change", calculate);
+  
+  // Обработчики для эконом-линейки
+  const chkSteps = document.getElementById('chkSteps');
+  const chkRamp75 = document.getElementById('chkRamp75');
+  const chkRamp160 = document.getElementById('chkRamp160');
+  const chkVaporBarrier = document.getElementById('chkVaporBarrier');
+  const chkInteriorFinish = document.getElementById('chkInteriorFinish');
+  const selVeranda = document.getElementById('selVeranda');
+
+  if (chkSteps) chkSteps.addEventListener("change", calculate);
+  if (chkRamp75) chkRamp75.addEventListener("change", calculate);
+  if (chkRamp160) chkRamp160.addEventListener("change", calculate);
+  if (chkVaporBarrier) chkVaporBarrier.addEventListener("change", calculate);
+  if (chkInteriorFinish) chkInteriorFinish.addEventListener("change", calculate);
+  if (selVeranda) selVeranda.addEventListener("change", calculate);
+btnClearAddr.addEventListener("click", function() {
+  clearDelivery();
+  calculate(); // Обновляем КП при сбросе доставки
+});
 updateStaticPriceLabels(); 
 
   handleTypeChange();
-});
+  
+  // Принудительно обновляем сваи при загрузке
+  setTimeout(() => {
+    const type = selType.value;
+    const cfg = CONFIG[type];
+    
+    // Показываем/скрываем правильные блоки свай
+    const standardPilesBlock = document.getElementById('standardPilesBlock');
+    const economyPilesBlock = document.getElementById('economyPilesBlock');
+    
+    if (!cfg.isEconomy) {
+      console.log('Force calling populatePileOptions on page load');
+      if (standardPilesBlock) standardPilesBlock.style.display = 'block';
+      if (economyPilesBlock) economyPilesBlock.style.display = 'none';
+      populatePileOptions();
+    } else {
+      console.log('Force calling populateEconomyPileOptions on page load');
+      if (standardPilesBlock) standardPilesBlock.style.display = 'none';
+      if (economyPilesBlock) economyPilesBlock.style.display = 'block';
+      populateEconomyPileOptions();
+    }
+    
+    // Добавляем обработчик для chkMouseNew после загрузки всех элементов
+    const chkMouseNew = document.getElementById('chkMouseNew');
+    if (chkMouseNew) {
+      console.log('Adding event listener to chkMouseNew element (delayed):', chkMouseNew);
+      chkMouseNew.addEventListener("change", function() {
+        console.log('chkMouseNew changed, checked:', chkMouseNew.checked);
+        calculate();
+      });
+      console.log('Event listener added successfully (delayed)');
+    } else {
+      console.error('chkMouseNew element not found (delayed)!');
+    }
+  }, 100);
 
 // Кнопка «Копировать КП»
 const btnCopy = document.getElementById("btnCopy");
@@ -520,6 +1119,8 @@ btnCopy.addEventListener("click", () => {
     })
     .catch(() => alert("Не удалось скопировать в буфер обмена."));
 });
+
+// Функция генерации PDF временно отключена
 
 /**
  * Жёстко заполняет селекты отделки для заданного профиля
@@ -557,8 +1158,10 @@ function updateFinishSelects(type, roof) {
   if (outer.length === 0) selOutRep.value = "none";
 
   // если вариантов внутренней отделки нет — прячем label
+  if (selInRep?.closest("label")) {
   selInRep.closest("label").style.display =
     inner.length === 0 ? "none" : "";
+  }
 }
 
 /* ------------------------------------------------------------------
@@ -591,12 +1194,14 @@ function updateStaticPriceLabels(){
   });
 
   // 4) Перегородки (selPart)
+  if (selPart) {
   Array.from(selPart.options).forEach(opt => {
     const p = PART[opt.value];
     if (p){
       opt.textContent = opt.textContent.replace(/\(.*?₽\/пог\.м\)/, `(${formatPrice(grossInt(p))} ₽/пог.м)`);
     }
   });
+  }
 
   // 5) Сетка «анти-мышь» (лейбл с чекбоксом #chkMouse)
   const mouseLbl = document.querySelector('label input#chkMouse')?.parentElement;
@@ -623,6 +1228,14 @@ function updateStaticPriceLabels(){
 function handleTypeChange() {
   const type = selType.value;
   const cfg  = CONFIG[type];
+  const isEconomy = cfg.isEconomy || false;
+  
+  console.log('handleTypeChange:', type, 'isEconomy:', isEconomy);
+  console.log('handleTypeChange: cfg.svai exists:', !!cfg.svai);
+  if (cfg.svai) {
+    console.log('handleTypeChange: cfg.svai.prices:', cfg.svai.prices);
+    console.log('handleTypeChange: cfg.svai.recommendations:', cfg.svai.recommendations);
+  }
 
   // текущая крыша
   const roof = document.querySelector('input[name="roof"]:checked').value;
@@ -634,23 +1247,50 @@ const prevW = +inpWidth.value || null;
 const prevL = +inpLength.value || null;
 
 // 2. Перерисовываем список ширин
-inpWidth.innerHTML = cfg.widths.map(w => `<option>${w}</option>`).join("");
+let availableWidths, availableLengths;
 
-// 3. Возвращаем старое значение, если оно есть
-if (prevW && cfg.widths.includes(prevW)) {
-  inpWidth.value = prevW;
+if (cfg.isEconomy) {
+  // Для эконом-линейки берем только те размеры, что есть в basePrice
+  availableWidths = [...new Set(Object.keys(cfg.basePrice).map(key => key.split('x')[0]))].sort((a, b) => parseFloat(a) - parseFloat(b));
+  availableLengths = [...new Set(Object.keys(cfg.basePrice).map(key => key.split('x')[1]))].sort((a, b) => parseFloat(a) - parseFloat(b));
+  
+  inpWidth.innerHTML = availableWidths.map(w => `<option>${w}</option>`).join("");
+  inpLength.innerHTML = availableLengths.map(l => `<option>${l}</option>`).join("");
 } else {
-  inpWidth.value = cfg.widths[0]; // резерв по-умолчанию
+  // Для обычных строений используем все размеры
+  availableWidths = cfg.widths;
+  availableLengths = cfg.lengths;
+  
+inpWidth.innerHTML = cfg.widths.map(w => `<option>${w}</option>`).join("");
+  inpLength.innerHTML = cfg.lengths.map(l => `<option>${l}</option>`).join("");
 }
 
-// 4. Перерисовываем список длин
-inpLength.innerHTML = cfg.lengths.map(l => `<option>${l}</option>`).join("");
+// 3. Возвращаем старое значение, если оно есть
+if (prevW && availableWidths.includes(prevW.toString())) {
+  inpWidth.value = prevW;
+} else {
+  inpWidth.value = availableWidths[0]; // резерв по-умолчанию
+}
 
 // 5. Возвращаем прежнюю длину, если возможно
-if (prevL && cfg.lengths.includes(prevL)) {
+if (prevL && availableLengths.includes(prevL.toString())) {
   inpLength.value = prevL;
 } else {
-  inpLength.value = cfg.lengths[0];
+  inpLength.value = availableLengths[0];
+}
+
+// 6. Добавляем слушатель для обновления длин при смене ширины
+if (cfg.isEconomy) {
+  // Блокируем длину до выбора ширины
+  inpLength.disabled = true;
+  inpLength.innerHTML = '<option>— выберите сначала ширину —</option>';
+  
+  inpWidth.addEventListener('change', updateAvailableLengths);
+  // Вызываем сразу для установки правильных длин
+  updateAvailableLengths();
+} else {
+  // Для обычных строений разблокируем длину
+  inpLength.disabled = false;
 }
 
 
@@ -667,6 +1307,8 @@ if (prevL && cfg.lengths.includes(prevL)) {
 
   // 8) сбрасываем остальные селекты и чекбоксы
 [selInsul, selRoofMat, selInRep, selOutRep, selPart].forEach(sel => {
+  if (!sel) return; // Пропускаем если элемент не найден
+  
   // 1. разрешаем все опции
   Array.from(sel.options).forEach(o => o.disabled = false);
 
@@ -674,7 +1316,9 @@ if (prevL && cfg.lengths.includes(prevL)) {
   if (sel.options.length) sel.value = sel.options[0].value;
 
   // 3. показываем label (если вдруг был скрыт)
+  if (sel.closest('label')) {
   sel.closest('label').style.display = 'block';
+  }
 });
 
 // -------------------------
@@ -682,15 +1326,143 @@ if (prevL && cfg.lengths.includes(prevL)) {
 // -------------------------
 
 selFloor.value = "plain";        // базовый пол
-chkMouse.checked = chkRamp.checked = false;
+// chkMouse.checked = chkRamp.checked = false;  // Временно закомментировано для отладки
 
 
 // если выбран хозблок – прячем утепление
-if (selType.value === 'hoblok') {
+if (selType.value === 'hoblok' && selInsul) {
   selInsul.value = 'none';                       // ставим «без изменений»
+  if (selInsul.closest('label')) {
   selInsul.closest('label').style.display = 'none'; // сам label прячем
-} else {
+  }
+} else if (selInsul && selInsul.closest('label')) {
   selInsul.closest('label').style.display = '';  // в остальных строениях показываем
+}
+
+// Для эконом-линейки скрываем ВСЕ старые поля
+if (isEconomy) {
+  // Скрываем ВСЕ старые поля - эконом-линейка работает отдельно
+  if (selInRep?.closest('label')) selInRep.closest('label').style.display = 'none';
+  if (selOutRep?.closest('label')) selOutRep.closest('label').style.display = 'none';
+  const verandaBlock = document.querySelector('.extras--veranda');
+  if (verandaBlock) verandaBlock.style.display = 'none';
+  const roofBlock = document.querySelector('input[name="roof"]')?.closest('.roof');
+  if (roofBlock) roofBlock.style.display = 'none';
+  // Скрываем старый блок выбора крыши
+  const oldRoofContainer = document.getElementById('roofContainer');
+  if (oldRoofContainer) oldRoofContainer.style.display = 'none';
+  if (selRoofMat?.closest('label')) selRoofMat.closest('label').style.display = 'none';
+  if (selFloor?.closest('label')) selFloor.closest('label').style.display = 'none';
+  const heightBlock = document.getElementById('inpExtraH')?.closest('.opt-box');
+  if (heightBlock) heightBlock.style.display = 'none';
+  if (chkMouse?.closest('label')) chkMouse.closest('label').style.display = 'none';
+  
+  // Скрываем секцию "Дополнительные опции" для стандартной линейки
+  const standardExtrasCards = document.querySelectorAll('.section-card h2');
+  standardExtrasCards.forEach(h2 => {
+    if (h2.textContent === 'Дополнительные опции' && !h2.textContent.includes('эконом')) {
+      h2.closest('.section-card').style.display = 'none';
+    }
+  });
+  
+  // Показываем только блок эконом-опций
+  const economyExtras = document.getElementById('economyExtras');
+  console.log('economyExtras found:', !!economyExtras);
+  if (economyExtras) {
+    economyExtras.style.display = 'block';
+    console.log('economyExtras shown');
+  }
+  
+  // Показываем блок способа доставки для эконом-линейки
+  const economyDeliveryOptions = document.getElementById('economyDeliveryOptions');
+  if (economyDeliveryOptions) {
+    economyDeliveryOptions.style.display = 'block';
+  }
+  
+  // Автоматически заполняем рекомендуемое количество свай только для эконом-линеек
+  if (cfg.isEconomy) {
+    updateSvaiRecommendation();
+  }
+  
+  // Обновляем варианты веранд
+  updateVerandaOptions();
+  
+  // Обновляем сваи для обычных линеек
+  if (!cfg.isEconomy) {
+    populatePileOptions();
+  }
+  
+  // Обновляем веранды и сваи при смене размеров для всех строений
+  [inpWidth, inpLength].forEach(el => {
+    el.addEventListener("change", () => {
+      updateVerandaOptions();
+      if (!cfg.isEconomy) {
+        populatePileOptions();
+      } else {
+        populateEconomyPileOptions();
+      }
+    });
+    el.addEventListener("input", () => {
+      updateVerandaOptions();
+      if (!cfg.isEconomy) {
+        populatePileOptions();
+      } else {
+        populateEconomyPileOptions();
+      }
+    });
+  });
+  
+  // Скрываем опции утепления для хозблоков эконом
+  if (type === 'hoblok_economy') {
+    const insulationOptions = document.querySelectorAll('#chkCeilingInsulation, #chkInsulation100, #chkVaporBarrier');
+    insulationOptions.forEach(option => {
+      if (option?.closest('label')) {
+        option.closest('label').style.display = 'none';
+      }
+    });
+  } else if (type === 'bytovka_economy') {
+    // Для бытовок эконом показываем все опции утепления
+    const insulationOptions = document.querySelectorAll('#chkCeilingInsulation, #chkInsulation100, #chkVaporBarrier');
+    insulationOptions.forEach(option => {
+      if (option?.closest('label')) {
+        option.closest('label').style.display = '';
+      }
+    });
+  }
+} else {
+  // Показываем все опции для обычной линейки
+  if (selInRep?.closest('label')) selInRep.closest('label').style.display = '';
+  if (selOutRep?.closest('label')) selOutRep.closest('label').style.display = '';
+  const verandaBlock = document.querySelector('.extras--veranda');
+  if (verandaBlock) verandaBlock.style.display = 'block';
+  const roofBlock = document.querySelector('input[name="roof"]')?.closest('.roof');
+  if (roofBlock) roofBlock.style.display = 'block';
+  // Показываем старый блок выбора крыши для обычной линейки
+  const oldRoofContainer = document.getElementById('roofContainer');
+  if (oldRoofContainer) oldRoofContainer.style.display = 'block';
+  if (selRoofMat?.closest('label')) selRoofMat.closest('label').style.display = 'block';
+  if (selFloor?.closest('label')) selFloor.closest('label').style.display = 'block';
+  const heightBlock = document.getElementById('inpExtraH')?.closest('.opt-box');
+  if (heightBlock) heightBlock.style.display = 'block';
+  if (chkMouse?.closest('label')) chkMouse.closest('label').style.display = 'block';
+  
+  // Показываем секцию "Дополнительные опции" для стандартной линейки
+  const standardExtrasCards = document.querySelectorAll('.section-card h2');
+  standardExtrasCards.forEach(h2 => {
+    if (h2.textContent === 'Дополнительные опции' && !h2.textContent.includes('эконом')) {
+      h2.closest('.section-card').style.display = 'block';
+    }
+  });
+  
+  // Скрываем блок эконом-опций
+  const economyExtras = document.getElementById('economyExtras');
+  if (economyExtras) economyExtras.style.display = 'none';
+  
+  // Скрываем блок способа доставки для эконом-линейки
+  const economyDeliveryOptions = document.getElementById('economyDeliveryOptions');
+  if (economyDeliveryOptions) {
+    economyDeliveryOptions.style.display = 'none';
+  }
 }
 
 
@@ -710,7 +1482,35 @@ if (selType.value === 'hoblok') {
   // 10) сброс веранды и обновление свай
   inpVerWidth.value = "";
   inpVerDepth.value = "";
+  
+  // Показываем/скрываем правильные блоки свай
+  const standardPilesBlock = document.getElementById('standardPilesBlock');
+  const economyPilesBlock = document.getElementById('economyPilesBlock');
+  
+  if (!cfg.isEconomy) {
+    console.log('Calling populatePileOptions for standard line:', type);
+    if (standardPilesBlock) standardPilesBlock.style.display = 'block';
+    if (economyPilesBlock) economyPilesBlock.style.display = 'none';
   populatePileOptions();
+    
+    // Обновляем подсказку для обычных линеек
+    const pileHint = document.getElementById('pileHint');
+    if (pileHint) {
+      pileHint.textContent = '💡 Количество свай рассчитывается по размеру строения';
+    }
+  } else {
+    console.log('Calling populateEconomyPileOptions for economy line:', type);
+    if (standardPilesBlock) standardPilesBlock.style.display = 'none';
+    if (economyPilesBlock) economyPilesBlock.style.display = 'block';
+    populateEconomyPileOptions();
+    
+    // Обновляем подсказку для эконом-линеек
+    const economyPileHint = document.getElementById('economyPileHint');
+    if (economyPileHint) {
+      economyPileHint.textContent = '💡 Количество подбирается автоматически по размеру';
+    }
+  }
+  
   updateStaticPriceLabels();
 }
 
@@ -723,21 +1523,46 @@ function populatePileOptions () {
   const w    = +inpWidth.value;
   const l    = +inpLength.value;
 
+  console.log('populatePileOptions called for type:', type, 'w:', w, 'l:', l);
+  console.log('populatePileOptions: timestamp:', new Date().toISOString());
+
+  // ПРОВЕРЯЕМ: если это эконом-линейка, НЕ заполняем сваи здесь!
+  const cfg = CONFIG[type];
+  if (cfg.isEconomy) {
+    console.log('populatePileOptions: SKIPPING for economy line, should use populateEconomyPileOptions');
+    return;
+  }
+
   const cnt  = getPileCount(type, w, l);
+  console.log('populatePileOptions: pile count calculated:', cnt);
 
   // 👉  для домов Ø76 не показываем
   const skip76 = (type === "house" && cnt > 12);
 
-  selPile.innerHTML = '<option value="">— без свай —</option>';
+  const selSvaiType = document.getElementById('selSvaiType');
+  if (selSvaiType) {
+    console.log('populatePileOptions: clearing and filling selSvaiType for type:', type);
+    selSvaiType.innerHTML = '<option value="">— без свай —</option>';
 
-  Object.entries(PILES).forEach(([dim, pricePerUnit]) => {
+    // Используем только PILES_STANDARD для обычных линеек
+    console.log('populatePileOptions: using PILES_STANDARD data');
+    console.log('populatePileOptions: pilesData:', PILES_STANDARD);
+
+    Object.entries(PILES_STANDARD).forEach(([dim, pricePerUnit]) => {
     if (skip76 && dim.includes("×76")) return;
     if (dim === "1.5×76" && cnt > 12) return;
 
     const priceGrossPerUnit = grossInt(pricePerUnit); // показываем с комиссией
-    selPile.innerHTML +=
+      selSvaiType.innerHTML +=
       `<option value="${dim}">${dim} × ${cnt} шт (${formatPrice(priceGrossPerUnit)} ₽/шт)</option>`;
   });
+    
+    console.log('populatePileOptions: final options count:', selSvaiType.options.length);
+    console.log('populatePileOptions: first option text:', selSvaiType.options[0]?.textContent);
+    console.log('populatePileOptions: all options:', Array.from(selSvaiType.options).map(opt => opt.textContent));
+  } else {
+    console.log('populatePileOptions: selSvaiType not found!');
+  }
 }
 
 /* ------------------------------------------------------------------
@@ -804,12 +1629,199 @@ function addWindowRow () {
     }
   }
 
-  selType.addEventListener("change", rebuild);
-  selCam .addEventListener("change", rebuild);
-  btnX   .addEventListener("click", () => row.remove());
+  selType.addEventListener("change", function() {
+    rebuild();
+    calculate(); // Обновляем КП при изменении
+  });
+  selCam.addEventListener("change", function() {
+    rebuild();
+    calculate(); // Обновляем КП при изменении
+  });
+  selSize.addEventListener("change", function() {
+    calculate(); // Обновляем КП при изменении
+  });
+  qtyInp.addEventListener("change", function() {
+    calculate(); // Обновляем КП при изменении
+  });
+  btnX.addEventListener("click", function() {
+    row.remove();
+    calculate(); // Обновляем КП при удалении
+  });
 
   rebuild();
   windowsContainer.appendChild(row);
+}
+
+/* ------------------------------------------------------------------
+   7a. addPartitionRow — добавляем строку перегородки
+------------------------------------------------------------------ */
+function addPartitionRow() {
+  const clone = document.getElementById("tmplPartitionRowEconomy").content.cloneNode(true);
+  const row = clone.querySelector(".partition-row");
+  
+  const materialSelect = row.querySelector(".partition-material");
+  const sizeSelect = row.querySelector(".partition-size");
+  const qtyInput = row.querySelector(".partition-qty");
+  const removeBtn = row.querySelector(".btnRemovePartition");
+  
+  // Обработчик изменения материала
+  materialSelect.addEventListener("change", function() {
+    updatePartitionSizesInRow(row);
+    calculate(); // Обновляем КП при изменении
+  });
+  
+  // Обработчик изменения размера
+  sizeSelect.addEventListener("change", function() {
+    calculate(); // Обновляем КП при изменении
+  });
+  
+  // Обработчик изменения количества
+  qtyInput.addEventListener("change", function() {
+    calculate(); // Обновляем КП при изменении
+  });
+  
+  // Обработчик удаления
+  removeBtn.addEventListener("click", function() {
+    row.remove();
+    calculate(); // Обновляем КП при удалении
+  });
+  
+  // Добавляем строку в контейнер
+  document.getElementById("partitionsContainerEconomy").appendChild(row);
+}
+
+/* ------------------------------------------------------------------
+   7b. updatePartitionSizesInRow — обновляем размеры в конкретной строке
+------------------------------------------------------------------ */
+function updatePartitionSizesInRow(row) {
+  const material = row.querySelector(".partition-material").value;
+  const sizeSelect = row.querySelector(".partition-size");
+  
+  // Очищаем список размеров
+  sizeSelect.innerHTML = '<option value="">— размер —</option>';
+  
+  if (!material) {
+    sizeSelect.disabled = true;
+    return;
+  }
+  
+  // Включаем выбор размера
+  sizeSelect.disabled = false;
+  
+  // Добавляем размеры в зависимости от материала
+  const sizes = {
+    'organlit': [
+      { value: '2', text: '2м(2,2) — 6 600₽' },
+      { value: '2.5', text: '2,5м — 7 700₽' },
+      { value: '3', text: '3м — 8 250₽' }
+    ],
+    'osb': [
+      { value: '2', text: '2м(2,2) — 7 700₽' },
+      { value: '2.5', text: '2,5м — 8 800₽' },
+      { value: '3', text: '3м — 9 900₽' }
+    ],
+    'vagonka': [
+      { value: '2', text: '2м(2,2) — 13 200₽' },
+      { value: '2.5', text: '2,5м — 15 950₽' },
+      { value: '3', text: '3м — 16 500₽' }
+    ],
+    'hoblok': [
+      { value: '2', text: '2м(2,2) — 5 500₽' },
+      { value: '2.5', text: '2,5м — 7 150₽' },
+      { value: '3', text: '3м — 8 250₽' }
+    ]
+  };
+  
+  const materialSizes = sizes[material] || [];
+  materialSizes.forEach(size => {
+    const option = document.createElement('option');
+    option.value = `${material}_${size.value}`;
+    option.textContent = size.text;
+    sizeSelect.appendChild(option);
+  });
+}
+
+/* ------------------------------------------------------------------
+   7b. addWindowRowEconomy — добавляем строку «Окно / дверь» для эконом-линейки
+------------------------------------------------------------------ */
+function addWindowRowEconomy () {
+  const clone = tmplWindowRowEconomy.content.cloneNode(true);
+  const row   = clone.querySelector(".window-row");
+
+  const selType = row.querySelector(".win-type");   // pvcWin | woodWin | pvcDoor | woodDoor
+  const selCam  = row.querySelector(".win-cam");    // 1-кам / 2-кам (только для ПВХ-окон)
+  const selSize = row.querySelector(".win-size");   // размеры / варианты
+  const qtyInp  = row.querySelector(".win-qty");
+  const btnX    = row.querySelector(".btnRemoveWindow");
+
+  const DOOR_CAPTION = {
+    wooden_set:"Деревянная наборная 75×175", 
+    wooden_swing:"Распашная (ширина 160)", 
+    interior_pine:"Межкомнатная сосновая"
+  };
+
+  function rebuild () {
+    const t = selType.value;
+    selCam.style.display = (t === "pvcWin") ? "" : "none";
+    selSize.innerHTML = '<option value="">— размер / тип —</option>';
+
+    if (t === "pvcWin") {
+      const cam = selCam.value;
+      Object.entries(ECONOMY_WINDOWS).forEach(([sz, cams]) => {
+        if (cams[cam]) {
+          const pGross = cams[cam]; // уже с наценкой 10%
+          selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(pGross)} ₽)</option>`;
+        }
+      });
+
+    } else if (t === "pvcDoor") {
+      Object.entries(ECONOMY_WINDOWS).forEach(([sz, cams]) => {
+        if (sz.includes("дверь ПВХ")) {
+          const p = cams[2] || cams[1];
+          selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(p)} ₽)</option>`;
+        }
+      });
+
+    } else if (t === "woodWin") {
+      Object.entries(ECONOMY_WOOD_PRICES.win).forEach(([sz, p]) => {
+        selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(p)} ₽)</option>`;
+      });
+
+    } else if (t === "woodDoor") {
+      Object.entries(ECONOMY_WOOD_PRICES.door).forEach(([key, p]) => {
+        selSize.innerHTML +=
+          `<option value="${key}">${DOOR_CAPTION[key]} (${formatPrice(p)} ₽)</option>`;
+      });
+
+    } else if (t === "metalDoor") {
+      Object.entries(ECONOMY_METAL_PRICES).forEach(([code, p]) => {
+        selSize.innerHTML +=
+          `<option value="${code}">Дверь металлическая РФ (${formatPrice(p)} ₽)</option>`;
+      });
+    }
+  }
+
+  selType.addEventListener("change", function() {
+    rebuild();
+    calculate(); // Обновляем КП при изменении
+  });
+  selCam.addEventListener("change", function() {
+    rebuild();
+    calculate(); // Обновляем КП при изменении
+  });
+  selSize.addEventListener("change", function() {
+    calculate(); // Обновляем КП при изменении
+  });
+  qtyInp.addEventListener("change", function() {
+    calculate(); // Обновляем КП при изменении
+  });
+  btnX.addEventListener("click", function() {
+    row.remove();
+    calculate(); // Обновляем КП при удалении
+  });
+
+  rebuild();
+  document.getElementById("windowsContainerEconomy").appendChild(row);
 }
 
 // Человекочитаемые названия материалов
@@ -875,18 +1887,38 @@ function getModPrice(type, w, l) {
 ------------------------------------------------------------------ */
 async function calculate(){
   const type = selType.value;
+  const cfg = CONFIG[type];
+  const isEconomy = cfg.isEconomy || false;
+  
+  // Проверяем, что chkMouseNew существует
+  const chkMouseNew = document.getElementById('chkMouseNew');
+  if (!chkMouseNew) {
+    console.error('chkMouseNew element not found in calculate function!');
+    return;
+  }
+  
+  // console.log('calculate() called, chkMouseNew.checked:', chkMouseNew.checked);
 
     /* ---   ОБЪЯВЛЯЕМ СРАЗУ, чтобы не было ReferenceError   --- */
   const pkg = [];                  // список «Комплектация»
   let baseWinSize,  baseWinQty;    // базовые окна
   let baseDoorLabel, baseDoorQty;  // базовые двери
+  let heightNote = "";             // заметка о высоте
+  let partType = "none";           // тип перегородки
+  let partLen = 0;                 // длина перегородки
+  let floorCode = "plain";         // код материала пола
 
   if (type === "house") {          // каркасный дом
   baseWinSize   = "80×80";
   baseWinQty    = 3;
   baseDoorLabel = "Двери РФ: самонаборные";
   baseDoorQty   = 2;
-} else {                         // бытовка / хозблок
+} else if (isEconomy) {           // эконом-линейка
+  baseWinSize   = "55×80";        // деревянное окно по умолчанию
+  baseWinQty    = 1;
+  baseDoorLabel = "Дверь деревянная наборная 75×175 см";
+  baseDoorQty   = 1;
+} else {                         // бытовка / хозблок (обычная)
   baseWinSize   = "60×90";
   baseWinQty    = 1;
   baseDoorLabel = "Дверь: самонаборная 200×70–90 см";
@@ -923,6 +1955,14 @@ const vd = parseFloat(inpVerDepth.value) || 0;
 const isInsideVer = document.getElementById('chkInVer').checked; // чекбокс «внутренняя»
 const verArea     = (vw > 0 && vd > 0) ? vw * vd : 0;
 
+// Проверяем, выбрана ли веранда из прайса
+const selectedVeranda = document.getElementById('selVeranda')?.value;
+let verandaFromPrice = null;
+if (selectedVeranda) {
+  const verandaType = type === 'hoblok' ? 'hoblok' : 'bytovka';
+  verandaFromPrice = VERANDA_CONFIG[verandaType]?.[selectedVeranda];
+}
+
 const warmArea    = isInsideVer ? (w * l - verArea)    // только тёплая часть
                                 : (w * l);             // всё строение целиком
 // ──────────────────────────────────────────────────────────────
@@ -948,9 +1988,18 @@ let km = 0;                   // километраж
 // 2. если адрес есть — пытаемся построить маршрут
 const address = inpAddr.value.trim();
 if (address) {
-  km = await getKm(address);        // вернёт число или null
-  if (km === null) return;          // getKm уже показал alert
+  try {
+    km = await getKm(address, isEconomy);        // вернёт число или null
+    if (km === null) {
+      console.warn("Не удалось построить маршрут");
+      hasRoute = false;
+    } else {
   hasRoute = true;
+    }
+  } catch (error) {
+    console.error("Ошибка при построении маршрута:", error);
+    hasRoute = false;
+  }
 }
 
 // 3. если маршрута нет (пустой адрес) — доставка = минималка
@@ -961,15 +2010,51 @@ if (!hasRoute) {
   if (type === "house") {
     const key = `${w}x${l}`;
     rate = DELIV[key] || 300;
+    let cost = rate * km;
+    if (cost < minDeliv) cost = minDeliv;
+    const cost50 = Math.ceil(cost / 50) * 50; // по прайсу к 50
+    del = gross50(cost50);                    // +10% и снова к 50 ₽
+  } else if (isEconomy) {
+    // Эконом-линейка: выбор типа доставки (из прайса)
+    const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
+    const needsAssembly = document.getElementById('chkAssembly')?.checked;
+    
+    if (deliveryType === 'manipulator') {
+      // Доставка манипулятором: 150 руб/км, мин. 10 000 руб (из прайса)
+      rate = 150;
+      let cost = rate * km;
+      if (cost < 10000) cost = 10000;
+      // Добавляем 10% наценку к доставке
+      cost = Math.round(cost * 1.1 / 50) * 50;
+      del = cost;
   } else {
+      // Доставка комплектами: 130 руб/км, мин. 7 000 руб (из прайса)
+      rate = 130;
+      let cost = rate * km;
+      if (cost < 7000) cost = 7000;
+      // Добавляем 10% наценку к доставке
+      cost = Math.round(cost * 1.1 / 50) * 50;
+      
+      // Добавляем сборку только если выбрано
+      if (needsAssembly) {
+        cost += CONFIG[type].delivery.assembly;
+      }
+      
+      del = cost;
+    }
+    
+    // Для эконом-линейки: если сборка на участке, добавляем 7000 к базовой цене
+    if (needsAssembly && isEconomy) {
+      basePrice += 7000;
+    }
+  } else {
+    // Обычные линейки (хозблок, бытовка)
     rate = (veh === 2) ? CONFIG[type].delivery.perKm2 : CONFIG[type].delivery.perKm1;
-  }
-
   let cost = rate * km;
   if (cost < minDeliv) cost = minDeliv;
-
   const cost50 = Math.ceil(cost / 50) * 50; // по прайсу к 50
   del = gross50(cost50);                    // +10% и снова к 50 ₽
+  }
 }
 
 // ───── БАЗОВАЯ СТОИМОСТЬ ─────
@@ -981,7 +2066,34 @@ if (type === 'house') {
 
   basePrice = Math.ceil(paidArea * RATE[roof].base / 10) * 10;
 
-} else {                                        // 2. бытовка или хозблок
+} else if (isEconomy) {                        // 2. эконом-линейка
+  // Если выбрана веранда из прайса - используем её цену + 10% наценка
+  if (verandaFromPrice) {
+    basePrice = Math.round(verandaFromPrice.price * 1.1 / 50) * 50; // +10% и округление к 50
+  } else {
+    const tbl = CONFIG[type].basePrice;
+    
+    // Прямая попытка найти цену
+    basePrice = tbl[`${wReal}x${lReal}`] ?? 0;
+    
+    // Если не найдено - пробуем перепутанные стороны
+    if (!basePrice) basePrice = tbl[`${lReal}x${wReal}`] ?? 0;
+    
+    // Если все еще не найдено - используем расчет по площади
+    if (!basePrice) {
+      const baseArea = (isInsideVer && vw && vd) ? (wReal * lReal - verArea) : (wReal * lReal);
+      const ratePerSqm = (type === 'hoblok_economy') ? 6000 : 8000; // примерные ставки
+      basePrice = Math.round(baseArea * ratePerSqm / 100) * 100;
+    }
+  }
+  
+  // Автоматически добавляем 7000 к цене при выборе газели (сборка в подарок)
+  const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
+  if (deliveryType === 'kit') {
+    basePrice += 7000;
+  }
+  
+} else {                                        // 3. бытовка или хозблок (обычная)
   const tbl   = (type === 'hoblok')
                 ? CONFIG.hoblok.basePrice
                 : CONFIG.bytovka.basePrice;
@@ -1017,17 +2129,229 @@ if (!basePrice && wPrice === 2.5) {
 
     // универсальная функция — собираем в map
 const extraMap = {};
-function addExtra(sum, label){
+function addExtra(sum, label, skipMarkup = false){
   sum = Math.round(sum);
-  sum = grossInt(sum); // ← здесь добавляем нашу 10% комиссию на ЛЮБОЙ доп
   if(!sum || sum<=0) return;
-  extras += sum;
-  extraMap[label] = (extraMap[label] || 0) + sum;
+  
+  // Если skipMarkup = true, не применяем наценку (уже включена)
+  const finalSum = skipMarkup ? sum : grossInt(sum);
+  extras += finalSum;
+  extraMap[label] = (extraMap[label] || 0) + finalSum;
+}
+
+  /* --- ЭКОНОМ-ЛИНЕЙКА: упрощенные доп. опции --- */
+  if (isEconomy) {
+    // Для эконом-линейки используем фиксированные цены по размерам
+    const sizeKey = `${wReal}x${lReal}`;
+    
+    // Тип крыши для эконом-линейки (фиксированные цены с +10%)
+    const roofType = document.querySelector('input[name="economyRoof"]:checked')?.value;
+    if (roofType === 'gable_length') {
+      addExtra(22000, "Двускатная крыша по длине", true); // 20000 + 10%, уже с наценкой
+    } else if (roofType === 'gable_width') {
+      addExtra(16500, "Двускатная крыша по ширине", true); // 15000 + 10%, уже с наценкой
+    }
+    // Односкатная (single) - без доплаты
+    
+    // Утепление потолка 50 мм (только для бытовок эконом)
+    if (type === 'bytovka_economy' && document.getElementById('chkCeilingInsulation')?.checked) {
+      const price = ECONOMY_EXTRAS.ceilingInsulation[sizeKey];
+      if (price) addExtra(price, "Утепление потолка 50 мм");
+    }
+    
+    // Внутренняя отделка ОСП-9 (если выбрано)
+    if (document.getElementById('chkInteriorOSB')?.checked) {
+      const price = ECONOMY_EXTRAS.interiorFinish.osb[sizeKey];
+      if (price) addExtra(price, "Внутренняя отделка ОСП-9");
+    }
+    
+    // Внутренняя отделка вагонка "С" (если выбрано)
+    if (document.getElementById('chkInteriorVagonka')?.checked) {
+      const price = ECONOMY_EXTRAS.interiorFinish.vagonka[sizeKey];
+      if (price) addExtra(price, "Внутренняя отделка вагонка 'С'");
+    }
+    
+    // Утепление 100 мм (только для бытовок эконом)
+    if (type === 'bytovka_economy' && document.getElementById('chkInsulation100')?.checked) {
+      const price = ECONOMY_EXTRAS.insulation100[sizeKey];
+      if (price) addExtra(price, "Утепление 100 мм (стены/пол/потолок)");
+    }
+    
+    // Огнебиозащита пола (если выбрано)
+    if (document.getElementById('chkFireProtectionFloor')?.checked) {
+      const price = ECONOMY_EXTRAS.fireProtection.floor[sizeKey];
+      if (price) addExtra(price, "Огнебиозащита пола");
+    }
+    
+    // Огнебиозащита каркаса (если выбрано)
+    if (document.getElementById('chkFireProtectionFrame')?.checked) {
+      const price = ECONOMY_EXTRAS.fireProtection.frame[sizeKey];
+      if (price) addExtra(price, "Огнебиозащита каркаса");
+    }
+    
+    // Паро- и ветроизоляция (только для бытовок эконом)
+    if (type === 'bytovka_economy' && document.getElementById('chkVaporBarrier')?.checked) {
+      const price = ECONOMY_EXTRAS.vaporBarrier[sizeKey];
+      if (price) addExtra(price, "Паро- и ветроизоляция");
+    }
+    
+    // Перегородки (если выбраны)
+    const partitionsContainer = document.getElementById('partitionsContainerEconomy');
+    if (partitionsContainer) {
+      partitionsContainer.querySelectorAll('.partition-row').forEach(row => {
+        const material = row.querySelector('.partition-material')?.value;
+        const size = row.querySelector('.partition-size')?.value;
+        const qty = parseInt(row.querySelector('.partition-qty')?.value) || 0;
+        
+        if (material && size && qty > 0) {
+          const partitionPrices = {
+            'organlit_2': 6600,    // 6000 + 10%
+            'organlit_2.5': 7700,  // 7000 + 10%
+            'organlit_3': 8250,    // 7500 + 10%
+            'osb_2': 7700,         // 7000 + 10%
+            'osb_2.5': 8800,       // 8000 + 10%
+            'osb_3': 9900,         // 9000 + 10%
+            'vagonka_2': 13200,    // 12000 + 10%
+            'vagonka_2.5': 15950,  // 14500 + 10%
+            'vagonka_3': 16500,    // 15000 + 10%
+            'hoblok_2': 5500,      // 5000 + 10%
+            'hoblok_2.5': 7150,    // 6500 + 10%
+            'hoblok_3': 8250       // 7500 + 10%
+          };
+          
+          const price = partitionPrices[size] || 0;
+          if (price > 0) {
+            const optionText = row.querySelector('.partition-size').selectedOptions[0].text;
+            const total = price * qty;
+            addExtra(total, `${optionText} (${qty} шт)`);
+          }
+        }
+      });
+    }
+    
+    // Окна / двери (новый интерфейс для эконом-линейки)
+    const windowsContainerEconomy = document.getElementById('windowsContainerEconomy');
+    if (windowsContainerEconomy) {
+      windowsContainerEconomy.querySelectorAll(".window-row").forEach(row => {
+        const kind = row.querySelector(".win-type").value;   // pvcWin | woodWin | pvcDoor | woodDoor
+        const cam  = row.querySelector(".win-cam").value;
+        const sel  = row.querySelector(".win-size");
+        const code = sel.value;                 // строка-код из <option value="…">
+        const qty  = +row.querySelector(".win-qty").value || 1;
+        if (!code) return;                      // ничего не выбрано
+
+        let price = 0, caption = "";
+
+        switch (kind) {
+        /* ---------- ОКНА ---------- */
+        case "pvcWin": {                        // окно ПВХ
+          price   = ECONOMY_WINDOWS[code][cam];
+          caption = `Окно ПВХ ${code}`;
+          if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+          pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ в «Комплектацию»
+          break;
+        }
+
+        case "woodWin": {                // окно деревянное
+        price   = ECONOMY_WOOD_PRICES.win[code];
+        caption = `Окно деревянное ${code}`;
+
+        // если это базовый размер – просто увеличиваем счётчик
+        if (code === baseWinSize) {
+          baseWinQty += qty;
+        } else {
+          pkg.push(`– ${caption} (${qty} шт)`);
+        }
+
+        if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+        break;
+      }
+
+        /* ---------- ДВЕРИ ---------- */
+        case "pvcDoor": {                       // дверь ПВХ
+          price   = ECONOMY_WINDOWS[code][2] || ECONOMY_WINDOWS[code][1];
+          caption = `Дверь ПВХ ${code}`;
+          if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+          pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
+          break;
+        }
+
+        case "woodDoor": {               // дверь деревянная
+        price = ECONOMY_WOOD_PRICES.door[code];
+        const cap = { 
+          wooden_set:"Деревянная наборная 75×175",
+          wooden_swing:"Распашная (ширина 160)",
+          interior_pine:"Межкомнатная сосновая"
+        }[code];
+        caption = `Дверь деревянная (${cap})`;
+
+        if (code === "wooden_set") {          // базовая «наборная»
+          baseDoorQty += qty;
+        } else {
+          pkg.push(`– ${caption} (${qty} шт)`);
+        }
+
+        if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+        break;
+      }
+
+        case "metalDoor": {                     // дверь металлическая
+          price   = ECONOMY_METAL_PRICES[code];
+          caption = "Дверь металлическая РФ";
+          if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+          pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
+          break;
+        }
+      }
+      });
+    }
+    
+    // Прочее
+    if (document.getElementById('chkSteps')?.checked) {
+      addExtra(ECONOMY_EXTRAS.misc.steps, "Ступени");
+    }
+    if (document.getElementById('chkRamp75')?.checked) {
+      addExtra(ECONOMY_EXTRAS.misc.ramp_75, "Пандус 75 см");
+    }
+    if (document.getElementById('chkRamp160')?.checked) {
+      addExtra(ECONOMY_EXTRAS.misc.ramp_160_180, "Пандус 160-180 см");
+    }
+    
+    // Сваи для эконом-линейки (если выбрано)
+    const svaiType = document.getElementById('selEconomySvaiType')?.value;
+    if (svaiType) {
+      const w = parseFloat(inpWidth.value) || 0;
+      const l = parseFloat(inpLength.value) || 0;
+      const sizeKey = `${w}x${l}`;
+      const recommendation = CONFIG[type].svai.recommendations[sizeKey];
+      if (recommendation) {
+        const prices = {
+          "76x150": 4840,
+          "76x200": 5390,
+          "89x200": 6050,
+          "89x250": 6490,
+          "89x300": 7150
+        };
+        const price = prices[svaiType];
+        if (price) {
+          const totalPrice = price * recommendation;
+          addExtra(totalPrice, `Сваи ${svaiType} (${recommendation} шт)`);
+        }
+      }
+    }
+    
+    // Пандус (если выбрано)
+    if (chkRamp.checked) addExtra(RAMP, "Пандус");
+    
+    // Сетка «анти-мышь» для эконом-линейки
+    if (chkMouse.checked) addExtra(FLOOR.mouse * warmArea, "Сетка «анти-мышь»");
+    
+    // Для эконом-линейки пропускаем обычную логику доп. опций
 }
 
   /* --- 1. Утепление (если > базового) --- */
   // --- 1. Утепление (считаем только для бытовки и дома) ---
-if (selType.value !== "hoblok" && selInsul.value !== "none") {
+if (!isEconomy && selType.value !== "hoblok" && selInsul.value !== "none") {
   // базовая толщина: 50 мм у бытовки, 100 мм у остальных
 const baseInsulPrice = (type === "bytovka") ? 0 : INSUL.roll100;
 const diff = INSUL[selInsul.value] - baseInsulPrice;
@@ -1036,12 +2360,12 @@ const diff = INSUL[selInsul.value] - baseInsulPrice;
 
 
   /* --- 2. Кровля (цветной/металлочерепица) --- */
-  if (selRoofMat.value !== "galv" && selRoofMat.value !== "ondulin") {
+  if (!isEconomy && selRoofMat.value !== "galv" && selRoofMat.value !== "ondulin") {
     addExtra(ROOFMAT[selRoofMat.value] * warmArea, getLabel(selRoofMat.selectedOptions[0]));
   }
 
   /* --- 3. Доплата за двускатную крышу для хозблоков/бытовок --- */
-  if (type !== "house") {
+  if (!isEconomy && type !== "house") {
     const roof = document.querySelector('input[name="roof"]:checked').value;
     if (roof === "gable") {
       addExtra(1800 * warmArea, "Двускатная крыша");
@@ -1050,7 +2374,7 @@ const diff = INSUL[selInsul.value] - baseInsulPrice;
 
 
 // --- ВЕРАHДA: одна строка при любом варианте ---
-if (vw > 0 && vd > 0) {
+if (!isEconomy && vw > 0 && vd > 0) {
   // 3.1 цену берём:    односкатная = 7 500 ₽/м²   |   двускатная = 9 000 ₽/м²
   //    verRoof уже "verRoof" или "verGable" (7500 / 9000)
   const priceKey = verRoof;
@@ -1065,46 +2389,68 @@ if (vw > 0 && vd > 0) {
 
 
   /* --- 5. Шпунт-пол, высота и «анти-мышь» --- */
-const floorCode  = document.getElementById('selFloor').value;
+if (!isEconomy) {
+  floorCode = document.getElementById('selFloor').value;
 const floorExtra = FLOOR_MAT[floorCode] * warmArea;
 if (floorExtra) addExtra(floorExtra, FLOOR_CAPT[floorCode]);
 
-// ▸ увеличение высоты
+  // ▸ увеличение высоты (только для обычной линейки)
 const extraH = +inpExtraH.value || 0;        // введено в см
-let heightNote = "";                         // <— добавили
 if (extraH > 0) {
   const steps = Math.ceil(extraH / 10);
   const addH  = steps * pricePer10cm(warmArea);
   addExtra(addH, `Высота +${extraH} см`);
-  heightNote = `– Высота увеличена на ${extraH} см`;   // <— запомнили
+    heightNote = `– Высота увеличена на ${extraH} см`;
+  }
 }
 
-if (chkMouse.checked) addExtra(FLOOR.mouse * warmArea, "Сетка «анти-мышь»");
+// Сетка «анти-мышь» будет обработана позже в блоке дополнительных опций
 
 
-  /* --- 6. Перегородки --- */
-  const partType = selPart.value;
-  const partLen  = parseFloat(inpPartLen.value) || 0;
-  if (partType!=="none" && partLen>0) {
-    addExtra(PART[partType]*partLen, `${PART_TITLE[partType]} (${partLen} м)`);
+  /* --- 6. Перегородки для стандартной линейки --- */
+  if (!isEconomy) {
+    const selPartitionType = document.getElementById('selPartitionType');
+    const inpPartitionLength = document.getElementById('inpPartitionLength');
+    
+    if (selPartitionType && inpPartitionLength) {
+      partType = selPartitionType.value;
+      partLen  = parseFloat(inpPartitionLength.value) || 0;
+      if (partType && partLen > 0) {
+        // Для стандартной линейки используем старую логику с PART_TITLE
+        const partitionPrice = PART[partType] || 0;
+        if (partitionPrice > 0) {
+          addExtra(partitionPrice * partLen, `${PART_TITLE[partType]} (${partLen} м)`);
+        }
+      }
+    }
   }
 
   /* --- 8. Сваи --- */
-  if (selPile.value) {
-    const dim = selPile.value;
+  if (!isEconomy) {
+    const selSvaiType = document.getElementById('selSvaiType');
+    if (selSvaiType && selSvaiType.value) {
+      const dim = selSvaiType.value;
     const cnt  = getPileCount(type, w, l);
-    const price = PILES[dim] * cnt;
+      const price = PILES_STANDARD[dim] * cnt;
     addExtra(price, `Свайный фундамент ${dim} × ${cnt} шт`);
+    }
   }
 
   /* --- 9. Пандус --- */
-if (chkRamp.checked) addExtra(RAMP, "Пандус");
+if (!isEconomy && chkRamp.checked) addExtra(RAMP, "Пандус");
+
+  /* --- 10. Сетка «анти-мышь» для обычных линеек --- */
+if (!isEconomy && chkMouseNew.checked) {
+  const price = grossInt(FLOOR.mouse) * warmArea; // применяем наценку 10%
+  addExtra(price, "Сетка «анти-мышь»");
+}
 
 // 5-БИС) фиксируем базовые окна / двери (итоговое количество)
 
 // ------------------------------------------------------------------
 
   /* --- 9. Окна / двери (все варианты) --- */
+if (!isEconomy) {
 windowsContainer.querySelectorAll(".window-row").forEach(row => {
   const kind = row.querySelector(".win-type").value;   // pvcWin | woodWin | pvcDoor | woodDoor
   const cam  = row.querySelector(".win-cam").value;
@@ -1177,8 +2523,16 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
 }
 
 });
+} // закрываем блок окон/дверей для !isEconomy
 
   /* ===== 8.4. Логика отделки (замена материала) ===== */
+  
+  // Если эконом-линейка - пропускаем сложную логику отделки
+  if (isEconomy) {
+    // Для эконом-линейки используем упрощенную комплектацию
+    finalInt = null; // без внутренней отделки по умолчанию
+    finalExt = "profGalv"; // профнастил оцинкованный по умолчанию
+  } else {
 
 // вспомогательная функция «округлить вверх до ближайших 3 м²»
 const round3 = m => Math.ceil(m / 3) * 3;
@@ -1280,6 +2634,7 @@ const areaOut  = IMIT.has(extTgt) ? round3(wallArea(w, l, extH))
       ? (document.querySelector('input[name="roof"]:checked').value === "lom" ? "vagBC" : "imitB")
       : "vagBC";
 }
+  } // закрываем else для isEconomy
 
   /* ===== 8.5. Итоговые строки КП ===== */
   
@@ -1293,11 +2648,26 @@ if (vw > 0 && vd > 0){
 }
 
 // итоговый заголовок КП
-const total    = basePrice + del + extras;
+let total = basePrice + del + extras;
+
+// Для эконом-линейки цены уже с наценкой 10%, дополнительная наценка не нужна
+if (isEconomy) {
+  total = Math.round(total / 50) * 50; // только округление к 50
+}
 const roofType = document.querySelector('input[name="roof"]:checked').value;
-const title    = (type === "house")
-  ? `Каркасный дом с ${roofType === "lom" ? "ломаной" : "двускатной"} крышей ${w}×${l}${verTitle} — под ключ`
-  : `${selType.options[selType.selectedIndex].text} ${w}×${l}${verTitle} — под ключ`;
+// Формируем заголовок с учетом веранды из прайса
+let title;
+if (verandaFromPrice) {
+  // Если выбрана веранда из прайса - показываем общий размер
+  const totalSize = `${w}×${l}`;
+  const mainSize = verandaFromPrice.main;
+  const verandaSize = verandaFromPrice.veranda;
+  title = `${selType.options[selType.selectedIndex].text} ${totalSize} (${mainSize} + веранда ${verandaSize}) — под ключ`;
+} else if (type === "house") {
+  title = `Каркасный дом с ${roofType === "lom" ? "ломаной" : "двускатной"} крышей ${w}×${l}${verTitle} — под ключ`;
+} else {
+  title = `${selType.options[selType.selectedIndex].text} ${w}×${l}${verTitle} — под ключ`;
+}
 
 
 /* ─── Заголовок + блок «Комплектация» ───────────────────────────── */
@@ -1311,6 +2681,215 @@ const lines = [
 
 if (heightNote) pkg.push(heightNote);
 
+  // Специальная комплектация для эконом-линейки (по прайсу поставщика)
+  if (isEconomy) {
+    // 1) Тип строения
+    const buildingType = type === 'hoblok_economy' ? 'Деревянный хозблок' : 'Деревянная бытовка';
+    pkg.push(`– Тип: ${buildingType}`);
+    
+    // 2) Размеры
+    pkg.push(`– Внешний размер: ${w}×${l} м`);
+    
+    // 3) Планировка
+    pkg.push("– Планировка: 1 комната");
+    
+    // 4) Высота потолка
+    pkg.push("– Высота потолка: 1,95×2,14 м");
+    
+    // 5) Каркас
+    pkg.push("– Обвязочный брус: 90×90 мм, обрезной, естественной влажности 25%");
+    pkg.push("– Каркас: 45×45 мм обрезной, естественной влажности");
+    
+    // 6) Внешняя отделка
+    pkg.push("– Внешняя отделка: вагонка категории С (небольшие дырки от сучков закрываем пеной)");
+    
+    // 7) Внутренняя отделка (базовая по прайсу или замененная опцией)
+    const hasInteriorOSB = document.getElementById('chkInteriorOSB')?.checked;
+    const hasInteriorVagonka = document.getElementById('chkInteriorVagonka')?.checked;
+    
+    if (type === 'hoblok_economy') {
+      if (hasInteriorOSB) {
+        pkg.push("– Внутренняя отделка: ОСП-9");
+      } else if (hasInteriorVagonka) {
+        pkg.push("– Внутренняя отделка: вагонка 'С'");
+      } else {
+        pkg.push("– Внутренняя отделка: нет");
+      }
+    } else {
+      if (hasInteriorOSB) {
+        pkg.push("– Внутренняя отделка: ОСП-9");
+      } else if (hasInteriorVagonka) {
+        pkg.push("– Внутренняя отделка: вагонка 'С'");
+      } else {
+        pkg.push("– Внутренняя отделка: оргалит (ДВП) 0,35 мм");
+      }
+    }
+    
+    // 8) Крыша
+    const roofType = document.querySelector('input[name="economyRoof"]:checked')?.value;
+    let roofText = "– Крыша: односкатная";
+    if (roofType === 'gable_length') {
+      roofText = "– Крыша: двускатная по длине";
+    } else if (roofType === 'gable_width') {
+      roofText = "– Крыша: двускатная по ширине";
+    }
+    pkg.push(roofText);
+    
+    // 9) Кровля
+    pkg.push("– Кровля: профнастил оцинкованный С8");
+    
+    // 10) Пол
+    if (type === 'bytovka_economy') {
+      pkg.push("– Пол: ветроизоляция, черновой (обрезная доска 2-го сорта 22 мм), чистовой (обрезная доска 2-го сорта 22 мм), ОСП-9");
+    } else {
+      pkg.push("– Пол: обрезная доска 2-го сорта 22 мм");
+    }
+    
+    // 11) Утепление (только для бытовок эконом)
+    if (type === 'bytovka_economy') {
+      const hasInsulation100 = document.getElementById('chkInsulation100')?.checked;
+      if (hasInsulation100) {
+        // Если выбрано утепление 100 мм, заменяем базовое
+        pkg.push("– Утеплитель: 100 мм минвата, утеплены стены, пол, потолок");
+      } else {
+        // Базовое утепление 50 мм
+        pkg.push("– Утеплитель: 50 мм минвата, утеплены стены, пол");
+      }
+    } else if (type === 'hoblok_economy') {
+      // Хозблоки эконом без утепления
+      pkg.push("– Утеплитель: нет");
+    } else {
+      pkg.push("– Утеплитель: нет");
+    }
+    
+    // 12) Окна и двери (базовые по прайсу)
+    pkg.push(`– Окна: ${baseWinQty} шт деревянное, размер ${baseWinSize}, открывается, одинарное`);
+    pkg.push(`– Дверь: ${baseDoorQty} шт деревянная наборная, обшита вагонкой С`);
+    
+    // 10) Дополнительные опции (если выбраны)
+    if (document.getElementById('chkCeilingInsulation')?.checked) {
+      pkg.push("– Утепление потолка 50 мм");
+    }
+    // Внутренняя отделка уже добавлена в базовую комплектацию выше
+    // Утепление 100 мм уже добавлено в базовую комплектацию выше
+    if (document.getElementById('chkFireProtectionFloor')?.checked) {
+      pkg.push("– Огнебиозащита пола");
+    }
+    if (document.getElementById('chkFireProtectionFrame')?.checked) {
+      pkg.push("– Огнебиозащита каркаса");
+    }
+    if (type === 'bytovka_economy' && document.getElementById('chkVaporBarrier')?.checked) {
+      pkg.push("– Паро- и ветроизоляция");
+    }
+    if (document.getElementById('chkSteps')?.checked) {
+      pkg.push("– Ступени");
+    }
+    if (document.getElementById('chkRamp75')?.checked) {
+      pkg.push("– Пандус 75 см");
+    }
+    if (document.getElementById('chkRamp160')?.checked) {
+      pkg.push("– Пандус 160-180 см");
+    }
+    
+    // 11) Сваи для эконом-линейки (если выбраны)
+    const svaiType = document.getElementById('selEconomySvaiType')?.value;
+    if (svaiType) {
+      const w = parseFloat(inpWidth.value) || 0;
+      const l = parseFloat(inpLength.value) || 0;
+      const sizeKey = `${w}x${l}`;
+      const recommendation = CONFIG[type].svai.recommendations[sizeKey];
+      if (recommendation) {
+        const prices = {
+          "76x150": 4840,
+          "76x200": 5390,
+          "89x200": 6050,
+          "89x250": 6490,
+          "89x300": 7150
+        };
+        const svaiPrice = prices[svaiType];
+        if (svaiPrice) {
+          const svaiTotal = svaiPrice * recommendation;
+          pkg.push(`– Сваи ${svaiType} (${recommendation} шт): ${formatPrice(svaiTotal)} ₽`);
+        }
+      }
+    }
+    
+    // 12) Дополнительные окна и двери (если выбраны)
+    const windowsContainerEconomy = document.getElementById('windowsContainerEconomy');
+    if (windowsContainerEconomy) {
+      windowsContainerEconomy.querySelectorAll('.window-row').forEach(row => {
+        const type = row.querySelector('.win-type')?.value;
+        const size = row.querySelector('.win-size')?.value;
+        const qty = parseInt(row.querySelector('.win-qty')?.value) || 0;
+        
+        if (type && size && qty > 0) {
+          let price = 0;
+          let label = "";
+          
+          if (type === 'woodWin') {
+            price = ECONOMY_EXTRAS.windowsDoors.woodWindows[size] || 0;
+            label = `Доп. окно деревянное ${size}`;
+          } else if (type === 'pvcWin') {
+            price = ECONOMY_EXTRAS.windowsDoors.pvcWindows[size] || 0;
+            label = `Доп. окно ПВХ ${size}`;
+          } else if (type === 'woodDoor') {
+            price = ECONOMY_EXTRAS.windowsDoors.woodDoors[size] || 0;
+            label = `Доп. дверь деревянная ${size}`;
+          } else if (type === 'metalDoor') {
+            price = ECONOMY_EXTRAS.windowsDoors.metalDoors[size] || 0;
+            label = `Доп. дверь металлическая ${size}`;
+          } else if (type === 'interiorDoor') {
+            price = ECONOMY_EXTRAS.windowsDoors.interiorDoors[size] || 0;
+            label = `Доп. дверь межкомнатная ${size}`;
+          }
+          
+          if (price > 0) {
+            const total = price * qty;
+            pkg.push(`– ${label} (${qty} шт): ${formatPrice(total)} ₽`);
+          }
+        }
+      });
+    }
+    
+    // 13) Перегородки (если выбраны)
+    const partitionsContainer = document.getElementById('partitionsContainerEconomy');
+    if (partitionsContainer) {
+      partitionsContainer.querySelectorAll('.partition-row').forEach(row => {
+        const material = row.querySelector('.partition-material')?.value;
+        const size = row.querySelector('.partition-size')?.value;
+        const qty = parseInt(row.querySelector('.partition-qty')?.value) || 0;
+        
+        if (material && size && qty > 0) {
+          const partitionPrices = {
+            'organlit_2': 6600,    // 6000 + 10%
+            'organlit_2.5': 7700,  // 7000 + 10%
+            'organlit_3': 8250,    // 7500 + 10%
+            'osb_2': 7700,         // 7000 + 10%
+            'osb_2.5': 8800,       // 8000 + 10%
+            'osb_3': 9900,         // 9000 + 10%
+            'vagonka_2': 13200,    // 12000 + 10%
+            'vagonka_2.5': 15950,  // 14500 + 10%
+            'vagonka_3': 16500,    // 15000 + 10%
+            'hoblok_2': 5500,      // 5000 + 10%
+            'hoblok_2.5': 7150,    // 6500 + 10%
+            'hoblok_3': 8250       // 7500 + 10%
+          };
+          
+          const price = partitionPrices[size] || 0;
+          if (price > 0) {
+            const optionText = row.querySelector('.partition-size').selectedOptions[0].text;
+            const total = price * qty;
+            pkg.push(`– ${optionText} (${qty} шт): ${formatPrice(total)} ₽`);
+          }
+        }
+      });
+    }
+    
+    // Добавляем комплектацию для эконом-линейки в lines
+    pkg.forEach(l => lines.push((l.startsWith('–') ? l : '– ' + l) + "  "));
+    
+} else {
+  // Обычная комплектация для стандартной линейки
 // 0) Каркас (фиксированная запись)
 pkg.push("– Каркас: брус 50×100 мм (1 сорт, хвойный)");
 
@@ -1355,15 +2934,44 @@ if (type === "house") pkg.push("– Перегородка: по центру д
 if (vw > 0 && vd > 0){
   pkg.push(`– Веранда: ${vw}×${vd} м (${isInsideVer ? 'внутренняя' : 'пристройка'})`);
 }
-if (chkMouse.checked) pkg.push("– Сетка «анти-мышь»");
-
-if (partType !== "none" && partLen) {
-  pkg.push(`– ${PART_TITLE[partType]} (${partLen} м)`);
+const chkMouseNewKP = document.getElementById('chkMouseNew');
+if (!isEconomy && chkMouseNewKP && chkMouseNewKP.checked) {
+  pkg.push("– Сетка «анти-мышь»");
 }
 
-if (selPile.value) {
+// Перегородки для стандартной линейки
+if (!isEconomy) {
+  const selPartitionTypeKP = document.getElementById('selPartitionType');
+  const inpPartitionLengthKP = document.getElementById('inpPartitionLength');
+  
+  if (selPartitionTypeKP && inpPartitionLengthKP) {
+    const partTypeKP = selPartitionTypeKP.value;
+    const partLenKP = parseFloat(inpPartitionLengthKP.value) || 0;
+    
+    if (partTypeKP && partLenKP > 0) {
+      pkg.push(`– ${PART_TITLE[partTypeKP]} (${partLenKP} м)`);
+    }
+  }
+}
+
+if (!isEconomy) {
+  const selSvaiType = document.getElementById('selSvaiType');
+  if (selSvaiType && selSvaiType.value) {
   const pileCnt = getPileCount(type, w, l);          // ← корректное число свай
-  pkg.push(`– Свайный фундамент: ${selPile.value} × ${pileCnt} шт`);
+    pkg.push(`– Свайный фундамент: ${selSvaiType.value} × ${pileCnt} шт`);
+  }
+} else {
+  // Для эконом-линейки используем отдельный селект
+  const selEconomySvaiType = document.getElementById('selEconomySvaiType');
+  if (selEconomySvaiType && selEconomySvaiType.value) {
+    const w = parseFloat(inpWidth.value) || 0;
+    const l = parseFloat(inpLength.value) || 0;
+    const sizeKey = `${w}x${l}`;
+    const recommendation = CONFIG[type].svai.recommendations[sizeKey];
+    if (recommendation) {
+      pkg.push(`– Свайный фундамент: ${selEconomySvaiType.value} × ${recommendation} шт`);
+    }
+  }
 }
 
 pkg.push(`– Окно деревянное ${baseWinSize} (${baseWinQty} шт)`);
@@ -1393,6 +3001,7 @@ pkg.push(`– Высота ${type==="house"?"помещения":"потолка
 
 // — добавляем все пункты в основной массив —
 pkg.forEach(l => lines.push((l.startsWith('–') ? l : '– ' + l) + "  "));
+} // закрываем else для isEconomy
 
 // ─── Площади: тёплая / веранда / общая ─────────────────────────
 function nice(n){ return n.toFixed(1).replace('.', ','); }
@@ -1421,9 +3030,34 @@ lines.push(
 lines.push(`– Базовая: ${formatPrice(basePrice)} ₽  `);
 
 if (hasRoute) {
+  if (isEconomy) {
+    // Детальная информация о доставке для эконом-линейки
+    const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
+    const assembly = document.getElementById('chkAssembly')?.checked;
+    
+    let deliveryText = "";
+    if (deliveryType === 'manipulator') {
+      deliveryText = `Доставка манипулятором: ${formatPrice(del)} ₽`;
+    } else {
+      deliveryText = `Доставка комплектами: ${formatPrice(del)} ₽`;
+    }
+    
+    if (assembly) {
+      deliveryText += `\n– Сборка на участке: ${formatPrice(CONFIG[type].delivery.assembly)} ₽`;
+    }
+    
+    lines.push(`– ${deliveryText}  `);
+  } else {
   lines.push(`– Доставка: ${formatPrice(del)} ₽  `);
+  }
 } else {
+  if (isEconomy) {
+    // Для эконом-линейки показываем точную сумму
+    lines.push(`– Доставка: ${formatPrice(del)} ₽  `);
+  } else {
+    // Для стандартной линейки показываем "от"
   lines.push(`– Доставка: от ${formatPrice(del)} ₽  `);
+  }
 }
 
   linesExtra = Object.entries(extraMap).map(([label, sum]) => {
@@ -1451,6 +3085,52 @@ const DD   = String(ex.getDate()).padStart(2, "0");
 const MM   = String(ex.getMonth() + 1).padStart(2, "0");
 const YYYY = ex.getFullYear();
 
+// Подарки в зависимости от типа строения
+if (isEconomy) {
+  // Подарки для эконом-линейки по прайсу
+  const gifts = [];
+  
+  // Стандартные подарки (из прайса)
+  if (type === 'bytovka_economy') {
+    gifts.push("Пол ОСП-9");
+  }
+  gifts.push("Обработка нижних лаг");
+  gifts.push("Блоки фундамента");
+  gifts.push("Электрика (1 выключатель + 1 розетка)");
+  
+  // Сборка в подарок при доставке газелью
+  const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
+  if (deliveryType === 'kit') {
+    gifts.push("Сборка на участке");
+  }
+  
+  // Дополнительные подарки по ширине (из прайса)
+  if (wReal >= 2.5) {
+    gifts.push("Ступени");
+    gifts.push("Ветроизоляция по кругу");
+  }
+  
+  if (wReal >= 3) {
+    gifts.push("Утепление потолка");
+    gifts.push("Каркас 40×100");
+  }
+  
+  if (wReal >= 4) {
+    gifts.push("Обработка каркаса");
+  }
+  
+  lines.push(
+    ``,
+    `🎁 *Подарки:*`,
+    ...gifts.map(gift => `– ${gift}  `),
+    ``,
+    `🕒 *Срок изготовления:* 1–2 дня  `,
+    `💳 *Без предоплаты — оплата по факту*`,
+    ``,
+    `⏳ *Предложение действительно до ${DD}.${MM}.${YYYY}*`
+  );
+} else {
+  // Обычные подарки для стандартной линейки
 lines.push(
   ``,
   `🎁 *Подарки:*`,
@@ -1464,7 +3144,23 @@ lines.push(
   ``,
   `⏳ *Предложение действительно до ${DD}.${MM}.${YYYY}*`
 );
-// ---------- НОВЫЙ БЛОК «Почему мы» ----------
+}
+// ---------- БЛОК «Почему мы» (адаптированный под тип) ----------
+if (isEconomy) {
+  // Текст для эконом-линейки
+  lines.push(
+    "",
+    "✅ *Почему мы — отличаемся от других:*",
+    "– Опыт более 10 лет, работают одни и те же бригады",
+    "– Дерево только хвойных пород, качественный каркас",
+    "– Каркас и доска — только 1 сорт, прочный и ровный",
+    "– Вагонка категории С, без синевы и гнили",
+    "– Цена ниже, чем у большинства, при хорошем качестве",
+    "– Гарантия на монтаж и материалы",
+    "– Быстрая сборка и доставка"
+  );
+} else {
+  // Текст для стандартной линейки
 lines.push(
   "",
   "✅ *Почему мы — отличаемся от других:*",
@@ -1476,18 +3172,147 @@ lines.push(
   "– Цена ниже, чем у большинства, при лучшем качестве",
   "– Гарантия на монтаж и материалы"
 );
+}
 // --------------------------------------------
 
 
 out.innerHTML = lines.join("\n");
-
 }
 
 /* ------------------------------------------------------------------
-   9. Геокодер + маршрут
+   9. Умная система веранд
 ------------------------------------------------------------------ */
-async function getKm(address){
+
+// Функция для обновления доступных длин при выборе ширины
+function updateAvailableLengths() {
+  const type = selType.value;
+  const cfg = CONFIG[type];
+  
+  if (!cfg.isEconomy) return;
+  
+  const selectedWidth = inpWidth.value;
+  if (!selectedWidth) return;
+  
+  // Находим все длины, которые есть в комбинации с выбранной шириной
+  const availableLengths = [...new Set(
+    Object.keys(cfg.basePrice)
+      .filter(key => key.startsWith(selectedWidth + 'x'))
+      .map(key => key.split('x')[1])
+  )].sort((a, b) => parseFloat(a) - parseFloat(b));
+  
+  // Сохраняем текущую длину
+  const currentLength = inpLength.value;
+  
+  // Обновляем выпадашку длин и разблокируем
+  inpLength.innerHTML = availableLengths.map(l => `<option>${l}</option>`).join("");
+  inpLength.disabled = false;
+  
+  // Устанавливаем длину
+  if (availableLengths.includes(currentLength)) {
+    inpLength.value = currentLength;
+  } else {
+    inpLength.value = availableLengths[0];
+  }
+  
+  // Обновляем веранды и сваи
+  updateVerandaOptions();
+  if (cfg.isEconomy) {
+    updateSvaiRecommendation();
+  }
+}
+
+// Функция для поиска подходящих веранд по размерам
+function findMatchingVerandas(width, length, type) {
+  // Определяем тип для поиска в конфигурации веранд
+  let verandaType;
+  if (type === 'hoblok' || type === 'hoblok_economy') {
+    verandaType = 'hoblok';
+  } else if (type === 'bytovka' || type === 'bytovka_economy') {
+    verandaType = 'bytovka';
+  } else {
+    return []; // Для других типов веранд нет
+  }
+  
+  const availableVerandas = VERANDA_CONFIG[verandaType] || {};
+  const matches = [];
+  
+  // Ищем веранды, где основное помещение совпадает с выбранным размером
+  for (const [key, config] of Object.entries(availableVerandas)) {
+    const [mainW, mainL] = config.main.split('x').map(Number);
+    
+    // Проверяем, подходит ли размер основного помещения
+    if (mainW === width && mainL === length) {
+      matches.push({
+        key: key,
+        main: config.main,
+        veranda: config.veranda,
+        price: config.price,
+        description: `${config.main} + веранда ${config.veranda}`
+      });
+    }
+  }
+  
+  return matches;
+}
+
+// Функция для обновления списка веранд
+function updateVerandaOptions() {
+  const type = selType.value;
+  const width = parseFloat(inpWidth.value) || 0;
+  const length = parseFloat(inpLength.value) || 0;
+  
+  // Показываем блок веранд только для эконом-линейки
+  const verandaBlock = document.querySelector('.veranda-block');
+  
+  if (verandaBlock) {
+    if (type === 'hoblok_economy' || type === 'bytovka_economy') {
+      verandaBlock.style.display = 'block';
+    } else {
+      verandaBlock.style.display = 'none';
+      return;
+    }
+  } else {
+    return;
+  }
+  
+  // Находим подходящие веранды
+  const matches = findMatchingVerandas(width, length, type);
+  
+  // Обновляем селект веранд
+  const verandaSelect = document.getElementById('selVeranda');
+  
+  if (verandaSelect) {
+    verandaSelect.innerHTML = '<option value="">— без веранды —</option>';
+    
+    if (matches.length > 0) {
+      matches.forEach(match => {
+        const option = document.createElement('option');
+        option.value = match.key;
+        const priceWithMarkup = Math.round(match.price * 1.1 / 50) * 50; // +10% наценка
+        // Короткий текст для компактности
+        option.textContent = `${match.main} + ${match.veranda} — ${formatPrice(priceWithMarkup)} ₽`;
+        verandaSelect.appendChild(option);
+      });
+    } else {
+      const option = document.createElement('option');
+      option.value = "";
+      option.textContent = "Нет подходящих веранд для этого размера";
+      option.disabled = true;
+      verandaSelect.appendChild(option);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------
+   10. Геокодер + маршрут
+------------------------------------------------------------------ */
+async function getKm(address, isEconomy = false){
   try{
+    if (typeof ymaps === 'undefined') {
+      console.warn("Карты не загружены");
+      return null;
+    }
+    
     // 1. Ищем координаты введённого адреса
     const res   = await ymaps.geocode(address,{results:1});
     const obj   = res.geoObjects.get(0);
@@ -1495,8 +3320,11 @@ async function getKm(address){
 
     const coords = obj.geometry.getCoordinates();   // точка клиента
 
-    // 2. Строим маршрут «база → клиент»
-    const route = await ymaps.route([DEPOT, coords], { avoidTolls:true });
+    // 2. Выбираем базу в зависимости от типа строения
+    const depot = isEconomy ? DEPOT_ECONOMY : DEPOT;
+    
+    // 3. Строим маршрут «база → клиент»
+    const route = await ymaps.route([depot, coords], { avoidTolls:true });
 
     // 3. Длина маршрута в км
     const km = route.getLength() / 1000;
@@ -1504,6 +3332,9 @@ async function getKm(address){
     // 4. Показываем под полем адреса
     document.getElementById('kmInfo').textContent =
           km.toFixed(1).replace('.', ',') + ' км';
+    
+    // 5. Обновляем КП после успешного построения маршрута
+    calculate();
  
 // открыть карточку адреса (с левой панелью и кнопкой «Маршрут»)
 const [lat, lon] = coords;                  // ymaps → [lat, lon]
@@ -1529,8 +3360,7 @@ document.getElementById('kmSep').style.display = '';
 
     return km;             // ← вернули число для расчётов
   }catch(e){
-  alert("Ошибка Яндекс.Карт (см. консоль)");
-  console.error(e);
+  console.error("Ошибка Яндекс.Карт:", e);
   return null;
 }
 }

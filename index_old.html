@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Калькулятор каркасных строений</title>
+
+  <!-- ваш CSS -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Яндекс.Карты -->
+  <script
+    src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=410a6099-56c9-4669-81c8-f21896edfab0&suggest_apikey=410a6099-56c9-4669-81c8-f21896edfab0&load=package.full"
+    defer
+  ></script>
+
+  <!-- основной скрипт -->
+  <script src="script.js" defer></script>
+</head>
+
+
+<body>
+  <!-- Авторизация -->
+<div id="auth-container" class="auth-container">
+  <h2>Вход</h2>
+  <input type="text"     id="login"    placeholder="Логин">
+  <input type="password" id="password" placeholder="Пароль">
+  <button onclick="authenticate()">Войти</button>
+  <p id="auth-error">Неверный логин или пароль!</p>
+</div>
+
+  <!-- Калькулятор (скрыт пока не войдём) -->
+<div id="calc-container" class="hidden">
+  <!-- Кнопка выхода -->
+  <button id="btnLogout" class="logout" onclick="logout()">Выйти</button>
+
+  <div class="container">
+    <!-- остальные блоки калькулятора -->
+  <h1>Калькулятор каркасных строений</h1>
+
+  <div class="grid">
+    <!-- Основные параметры -->
+    <div class="section-card">
+      <h2>Основные параметры</h2>
+      <div class="form-group">
+        <label>Тип строения</label>
+        <select id="selType">
+          <option value="hoblok">Хозблок</option>
+          <option value="bytovka">Бытовка</option>
+          <option value="house" selected>Каркасный дом</option>
+          <option value="hoblok_economy">Хозблок эконом</option>
+          <option value="bytovka_economy">Бытовка эконом</option>
+        </select>
+      </div>
+
+      <!-- размеры (будут заполняться скриптом) -->
+      <div class="inline-2">
+        <label>Ширина, м
+          <select id="inpWidth"></select>
+        </label>
+      
+        <label>Длина, м
+          <select id="inpLength"></select>
+        </label>
+      </div>
+      
+      <!-- контейнер для типа крыши -->
+      <div id="roofContainer">
+        <fieldset>
+          <legend>Тип крыши</legend>
+          <label><input name="roof" type="radio" value="lom" checked /> Ломаная</label>
+          <label><input name="roof" type="radio" value="gable" /> Двускатная</label>
+        </fieldset>
+      </div>      
+
+      <label>Адрес доставки</label>
+<div class="address-container">
+    <input type="text"
+           id="inpAddr"
+           placeholder="Город, улица, дом"
+           autocomplete="off">
+    <div id="suggestions"></div>
+</div>
+<div class="addr-extra">
+  <small>
+    Дистанция от базы: <span id="kmInfo">—</span>
+    <span id="kmSep" style="display:none;"> | </span>
+    <a id="mapLink" href="#" target="_blank" style="display:none;"></a>
+  </small>
+</div>
+
+
+<button id="btnClearAddr"
+class="btn-danger reset-delivery-button"
+type="button">
+Сбросить доставку
+</button>
+
+
+
+      <div id="map"></div>
+    </div>
+
+    <!-- правая панель -->
+    <div>
+      <!-- 1. доп. опции (по площади) -->
+      <div class="extras">
+        <h2>Доп. опции (по площади)</h2>
+
+        <label>Утепление
+          <select id="selInsul">
+            <option value="none">— без изменений —</option>
+            <option value="roll100">Минеральная вата 100 мм (550 ₽/м²)</option>
+            <option value="min150">Минеральная вата 150 мм (2 000 ₽/м²)</option>
+            <option value="rock100">Каменная вата 100 мм (1000 ₽/м²)</option>
+            <option value="basalt150">Базальтовая 150 мм (4000 ₽/м²)</option>
+          </select>
+        </label>
+
+        <label>Кровля
+          <select id="selRoofMat">
+            <option value="galv" selected>Профнастил оцинкованный</option>
+            <option value="ondulin">Ондулин</option>
+            <option value="profColor">Цветной профлист (750 ₽/м²)</option>
+            <option value="tile_lom">Металлочерепица (ломаная) (800 ₽/м²)</option>
+            <option value="tile_gable">Металлочерепица (двускатная) (1200 ₽/м²)</option>
+          </select>
+        </label>
+
+        <!-- Веранда: теперь по размерам -->
+        <fieldset class="extras--veranda">
+          <legend>Веранда (по размерам)</legend>
+          <label>
+          <input type="checkbox" id="chkInVer"> Внутренняя веранда
+         </label>
+          <label>Ширина, м
+            <input
+              type="number"
+              id="verWidth"
+              min="0"
+              step="0.25"
+              placeholder="например, 3"
+            />
+          </label>
+          <label>Глубина, м
+  <input
+    type="number"
+    id="verDepth"
+    min="0"
+    step="0.25"
+    placeholder="например, 1.5"
+  />
+</label> <!-- ← вот этого не хватало -->
+<fieldset>
+            <legend>Тип крыши веранды</legend>
+            <label>
+              <input
+                type="radio"
+                name="verRoofType"
+                value="verRoof"
+                checked
+              />
+              Односкатная (7500 ₽/м²)
+            </label>
+            <label>
+              <input type="radio" name="verRoofType" value="verGable" />
+              Двускатная (9000 ₽/м²)
+            </label>
+          </fieldset>
+        </fieldset>
+
+        <label>Внутренняя отделка
+          <select id="selInRep">
+            <option value="none">— без изменений —</option>
+            <option value="osb_vag">ОСБ → вагонка B–C (120 ₽/м²)</option>
+            <option value="osb_imit">ОСБ → имитация бруса (350 ₽/м²)</option>
+            <option value="vag_imitBC">Вагонка → имитация B–C (250 ₽/м²)</option>
+            <option value="vag_imitA">Вагонка → имитация A (400 ₽/м²)</option>
+            <option value="vag_block">Вагонка → блок-хаус (1000 ₽/м²)</option>
+            <option value="osb_vagA">ОСБ → вагонка A (500 ₽/м²)</option>
+            <option value="osb_block">ОСБ → блок-хаус (1120 ₽/м²)</option>
+            <option value="vag_vagA">Вагонка B–C → вагонка A (380 ₽/м²)</option>
+          </select>
+        </label>
+
+        <label>Внешняя отделка
+          <select id="selOutRep">
+            <option value="none">— без изменений —</option>
+            <option value="vag_ext">Вагонка B–C (500 ₽/м²)</option>
+            <option value="imitBC_ext">Имитация бруса B–C (250 ₽/м²)</option>
+            <option value="imitA_ext">Имитация бруса A (400 ₽/м²)</option>
+            <option value="block_ext">Блок-хаус (1000 ₽/м²)</option>
+            <option value="osb_extA">Вагонка A (500 ₽/м²)</option>
+            <option value="vag_extA">Вагонка B–C → вагонка A (380 ₽/м²)</option>
+          </select>
+        </label>
+
+        <div class="checkbox-group">
+          <label>Материал пола
+          <select id="selFloor">
+            <option value="plain" selected>Обрезная доска 25×150 мм — 0 ₽/м²</option>
+            <option value="osb">ОСБ — 500 ₽/м²</option>
+            <option value="board50x150">Шпунт-пол: доска 50×150 мм — 1 700 ₽/м²</option>
+            <option value="planed35x140">Строганая 35×140 мм — 1 400 ₽/м²</option>
+          </select>
+        </label>
+          <label><input type="checkbox" id="chkMouse" /> Сетка «анти-мышь» (400 ₽/м²)</label>
+        </div>
+      </div>
+         
+        <!-- Увеличить высоту -->
+<div class="opt-box">              <!-- тот же класс, что и у «Перегородки» -->
+  <div class="opt-title">Увеличить высоту строения (см)</div>
+  <input id="inpExtraH"
+         type="number"
+         min="0" step="10"
+         value="0"
+         class="w100">
+</div>
+
+
+
+      <!-- 2. перегородки -->
+      <div class="extras">
+        <h2>Перегородки</h2>
+        <label>Тип
+          <select id="selPart">
+            <option value="none">— нет —</option>
+<option value="p1">Односторонняя перегородка (2 500 ₽/пог.м)</option>
+<option value="p2">Двусторонняя перегородка (3 200 ₽/пог.м)</option>
+<option value="p3">Двусторонняя перегородка с утеплением 100 мм (4 000 ₽/пог.м)</option>
+          </select>
+        </label>
+        <label>Длина, м
+          <input type="number" id="inpPartLen" min="0" step="1" value="0" />
+        </label>
+      </div>
+
+      <!-- 4. фундамент -->
+      <div class="extras">
+        <h2>Фундамент (сваи)</h2>
+        <label>Выберите сваи:
+          <select id="selPile"></select>
+        </label>
+      </div>
+
+      <!-- 5. окна / двери ПВХ -->
+      <div class="extras">
+        <h2>Окна / Двери</h2>
+        <button type="button" id="btnAddWindow">Добавить окно / дверь</button>
+        <label style="display:block; margin-top:10px;">
+  <input type="checkbox" id="chkRamp">
+  Пандус (2 000 ₽)
+</label>
+        <div id="windowsContainer"></div>
+        <template id="tmplWindowRow">
+          <div
+            class="window-row"
+            style="display:flex; gap:8px; align-items:center; margin-top:8px;"
+          >
+            <select class="win-type" style="width:140px">
+             <option value="pvcWin">Окно ПВХ</option>
+             <option value="woodWin">Окно деревянное</option>
+             <option value="pvcDoor">Дверь ПВХ</option>
+             <option value="woodDoor">Дверь деревянная</option>
+             <option value="metalDoor">Дверь металлическая</option>
+           </select>
+
+            <select class="win-cam">
+              <option value="1">1-кам.</option>
+              <option value="2">2-кам.</option>
+            </select>
+            <select class="win-size">
+              <option value="">— размер —</option>
+            </select>
+            <input
+              type="number"
+              class="win-qty"
+              min="1"
+              value="1"
+              style="width:60px;"
+            />
+            <button type="button" class="btnRemoveWindow">×</button>
+          </div>
+          
+
+        </template>
+      </div>
+    </div>
+        <!-- здесь вставляем новый блок -->
+        <div id="panelKP">
+
+          <div class="kp-box">
+            <pre id="out"></pre>
+    
+            <!-- кнопка теперь ВНУТРИ kp-box -->
+            <button id="btnCopy" class="btn-neutral">Копировать КП</button>
+          </div>
+    
+          <button id="btnCalc"  class="btn-primary">Рассчитать</button>
+          <button id="btnReset" class="btn-danger">Сбросить фильтры</button>
+        </div> <!-- /panelKP -->
+    
+      </div>   <!-- /grid -->
+    </div>     <!-- /container -->
+    </div>     <!-- /calc-container -->
+    
+    </body>
+    </html>
+    

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Тест калькулятора</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+    .test-result { margin: 10px 0; padding: 10px; border-radius: 3px; }
+    .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Тест калькулятора каркасных строений</h1>
+  
+  <div class="test-section">
+    <h2>1. Проверка загрузки страницы</h2>
+    <button onclick="testPageLoad()">Тест загрузки</button>
+    <div id="pageLoadResult"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>2. Проверка авторизации</h2>
+    <button onclick="testAuth()">Тест авторизации</button>
+    <div id="authResult"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>3. Проверка стандартной линейки</h2>
+    <button onclick="testStandardLine()">Тест стандартной линейки</button>
+    <div id="standardResult"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>4. Проверка эконом-линейки</h2>
+    <button onclick="testEconomyLine()">Тест эконом-линейки</button>
+    <div id="economyResult"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>5. Проверка перегородок</h2>
+    <button onclick="testPartitions()">Тест перегородок</button>
+    <div id="partitionsResult"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>6. Проверка окон/дверей</h2>
+    <button onclick="testWindowsDoors()">Тест окон/дверей</button>
+    <div id="windowsResult"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>7. Проверка доставки</h2>
+    <button onclick="testDelivery()">Тест доставки</button>
+    <div id="deliveryResult"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>8. Полный тест</h2>
+    <button onclick="runFullTest()">Запустить все тесты</button>
+    <div id="fullTestResult"></div>
+  </div>
+
+  <script>
+    let testResults = [];
+
+    function addResult(section, message, type = 'info') {
+      const result = { section, message, type, timestamp: new Date().toLocaleTimeString() };
+      testResults.push(result);
+      
+      const div = document.getElementById(section + 'Result');
+      div.innerHTML += `<div class="test-result ${type}">[${result.timestamp}] ${message}</div>`;
+    }
+
+    function testPageLoad() {
+      addResult('pageLoad', 'Проверяем загрузку страницы...', 'info');
+      
+      try {
+        const iframe = document.querySelector('iframe');
+        if (!iframe || !iframe.contentDocument) {
+          addResult('pageLoad', '❌ Iframe с основным калькулятором не загружен', 'error');
+          return;
+        }
+        
+        const iframeDoc = iframe.contentDocument;
+        
+        // Проверяем основные элементы
+        const requiredElements = [
+          'selType', 'inpWidth', 'inpLength', 'btnCalc', 'out',
+          'selInsul', 'selRoofMat', 'selInRep', 'selOutRep'
+        ];
+        
+        let missingElements = [];
+        requiredElements.forEach(id => {
+          if (!iframeDoc.getElementById(id)) {
+            missingElements.push(id);
+          }
+        });
+        
+        if (missingElements.length === 0) {
+          addResult('pageLoad', '✅ Все основные элементы найдены', 'success');
+        } else {
+          addResult('pageLoad', `❌ Отсутствуют элементы: ${missingElements.join(', ')}`, 'error');
+        }
+        
+        // Проверяем конфигурацию
+        if (iframe.contentWindow && typeof iframe.contentWindow.CONFIG !== 'undefined') {
+          addResult('pageLoad', '✅ Конфигурация CONFIG загружена', 'success');
+        } else {
+          addResult('pageLoad', '❌ Конфигурация CONFIG не найдена', 'error');
+        }
+        
+      } catch (error) {
+        addResult('pageLoad', `❌ Ошибка: ${error.message}`, 'error');
+      }
+    }
+
+    function testAuth() {
+      addResult('auth', 'Проверяем авторизацию...', 'info');
+      
+      try {
+        // Проверяем элементы авторизации
+        const authContainer = document.getElementById('auth-container');
+        const calcContainer = document.getElementById('calc-container');
+        
+        if (authContainer && calcContainer) {
+          addResult('auth', '✅ Элементы авторизации найдены', 'success');
+          
+          // Проверяем функцию authenticate
+          if (typeof authenticate === 'function') {
+            addResult('auth', '✅ Функция authenticate найдена', 'success');
+          } else {
+            addResult('auth', '❌ Функция authenticate не найдена', 'error');
+          }
+        } else {
+          addResult('auth', '❌ Элементы авторизации не найдены', 'error');
+        }
+      } catch (error) {
+        addResult('auth', `❌ Ошибка: ${error.message}`, 'error');
+      }
+    }
+
+    function testStandardLine() {
+      addResult('standard', 'Проверяем стандартную линейку...', 'info');
+      
+      try {
+        // Проверяем типы строений
+        const selType = document.getElementById('selType');
+        if (selType) {
+          const options = Array.from(selType.options).map(opt => opt.value);
+          const standardTypes = ['hoblok', 'bytovka', 'house'];
+          
+          let foundStandard = standardTypes.filter(type => options.includes(type));
+          if (foundStandard.length === standardTypes.length) {
+            addResult('standard', '✅ Все типы стандартной линейки найдены', 'success');
+          } else {
+            addResult('standard', `❌ Не найдены типы: ${standardTypes.filter(t => !foundStandard.includes(t)).join(', ')}`, 'error');
+          }
+        }
+        
+        // Проверяем перегородки
+        const selPartitionType = document.getElementById('selPartitionType');
+        if (selPartitionType) {
+          addResult('standard', '✅ Селект перегородок для стандартной линейки найден', 'success');
+        } else {
+          addResult('standard', '❌ Селект перегородок для стандартной линейки не найден', 'error');
+        }
+        
+        // Проверяем сваи
+        const selSvaiType = document.getElementById('selSvaiType');
+        if (selSvaiType) {
+          addResult('standard', '✅ Селект свай для стандартной линейки найден', 'success');
+        } else {
+          addResult('standard', '❌ Селект свай для стандартной линейки не найден', 'error');
+        }
+        
+      } catch (error) {
+        addResult('standard', `❌ Ошибка: ${error.message}`, 'error');
+      }
+    }
+
+    function testEconomyLine() {
+      addResult('economy', 'Проверяем эконом-линейку...', 'info');
+      
+      try {
+        // Проверяем типы эконом-линейки
+        const selType = document.getElementById('selType');
+        if (selType) {
+          const options = Array.from(selType.options).map(opt => opt.value);
+          const economyTypes = ['hoblok_economy', 'bytovka_economy'];
+          
+          let foundEconomy = economyTypes.filter(type => options.includes(type));
+          if (foundEconomy.length === economyTypes.length) {
+            addResult('economy', '✅ Все типы эконом-линейки найдены', 'success');
+          } else {
+            addResult('economy', `❌ Не найдены типы: ${economyTypes.filter(t => !foundEconomy.includes(t)).join(', ')}`, 'error');
+          }
+        }
+        
+        // Проверяем перегородки эконом-линейки
+        const partitionsContainer = document.getElementById('partitionsContainerEconomy');
+        if (partitionsContainer) {
+          addResult('economy', '✅ Контейнер перегородок эконом-линейки найден', 'success');
+        } else {
+          addResult('economy', '❌ Контейнер перегородок эконом-линейки не найден', 'error');
+        }
+        
+        // Проверяем сваи эконом-линейки
+        const selEconomySvaiType = document.getElementById('selEconomySvaiType');
+        if (selEconomySvaiType) {
+          addResult('economy', '✅ Селект свай для эконом-линейки найден', 'success');
+        } else {
+          addResult('economy', '❌ Селект свай для эконом-линейки не найден', 'error');
+        }
+        
+      } catch (error) {
+        addResult('economy', `❌ Ошибка: ${error.message}`, 'error');
+      }
+    }
+
+    function testPartitions() {
+      addResult('partitions', 'Проверяем перегородки...', 'info');
+      
+      try {
+        // Проверяем PART_TITLE для стандартной линейки
+        if (typeof PART_TITLE !== 'undefined') {
+          addResult('partitions', '✅ PART_TITLE для стандартной линейки найден', 'success');
+        } else {
+          addResult('partitions', '❌ PART_TITLE для стандартной линейки не найден', 'error');
+        }
+        
+        // Проверяем PART для стандартной линейки
+        if (typeof PART !== 'undefined') {
+          addResult('partitions', '✅ PART для стандартной линейки найден', 'success');
+        } else {
+          addResult('partitions', '❌ PART для стандартной линейки не найден', 'error');
+        }
+        
+        // Проверяем ECONOMY_EXTRAS для эконом-линейки
+        if (typeof ECONOMY_EXTRAS !== 'undefined' && ECONOMY_EXTRAS.partitions) {
+          addResult('partitions', '✅ ECONOMY_EXTRAS.partitions для эконом-линейки найден', 'success');
+        } else {
+          addResult('partitions', '❌ ECONOMY_EXTRAS.partitions для эконом-линейки не найден', 'error');
+        }
+        
+      } catch (error) {
+        addResult('partitions', `❌ Ошибка: ${error.message}`, 'error');
+      }
+    }
+
+    function testWindowsDoors() {
+      addResult('windows', 'Проверяем окна/двери...', 'info');
+      
+      try {
+        // Проверяем контейнеры окон/дверей
+        const windowsContainer = document.getElementById('windowsContainer');
+        const windowsContainerEconomy = document.getElementById('windowsContainerEconomy');
+        
+        if (windowsContainer) {
+          addResult('windows', '✅ Контейнер окон/дверей стандартной линейки найден', 'success');
+        } else {
+          addResult('windows', '❌ Контейнер окон/дверей стандартной линейки не найден', 'error');
+        }
+        
+        if (windowsContainerEconomy) {
+          addResult('windows', '✅ Контейнер окон/дверей эконом-линейки найден', 'success');
+        } else {
+          addResult('windows', '❌ Контейнер окон/дверей эконом-линейки не найден', 'error');
+        }
+        
+        // Проверяем шаблоны
+        const tmplWindowRow = document.getElementById('tmplWindowRow');
+        const tmplWindowRowEconomy = document.getElementById('tmplWindowRowEconomy');
+        
+        if (tmplWindowRow) {
+          addResult('windows', '✅ Шаблон окон/дверей стандартной линейки найден', 'success');
+        } else {
+          addResult('windows', '❌ Шаблон окон/дверей стандартной линейки не найден', 'error');
+        }
+        
+        if (tmplWindowRowEconomy) {
+          addResult('windows', '✅ Шаблон окон/дверей эконом-линейки найден', 'success');
+        } else {
+          addResult('windows', '❌ Шаблон окон/дверей эконом-линейки не найден', 'error');
+        }
+        
+      } catch (error) {
+        addResult('windows', `❌ Ошибка: ${error.message}`, 'error');
+      }
+    }
+
+    function testDelivery() {
+      addResult('delivery', 'Проверяем доставку...', 'info');
+      
+      try {
+        // Проверяем элементы доставки
+        const inpAddr = document.getElementById('inpAddr');
+        const btnClearAddr = document.getElementById('btnClearAddr');
+        const kmInfo = document.getElementById('kmInfo');
+        
+        if (inpAddr && btnClearAddr && kmInfo) {
+          addResult('delivery', '✅ Элементы доставки найдены', 'success');
+        } else {
+          addResult('delivery', '❌ Не все элементы доставки найдены', 'error');
+        }
+        
+        // Проверяем карту
+        const map = document.getElementById('map');
+        if (map) {
+          addResult('delivery', '✅ Элемент карты найден', 'success');
+        } else {
+          addResult('delivery', '❌ Элемент карты не найден', 'error');
+        }
+        
+        // Проверяем функции доставки
+        if (typeof clearDelivery === 'function') {
+          addResult('delivery', '✅ Функция clearDelivery найдена', 'success');
+        } else {
+          addResult('delivery', '❌ Функция clearDelivery не найдена', 'error');
+        }
+        
+      } catch (error) {
+        addResult('delivery', `❌ Ошибка: ${error.message}`, 'error');
+      }
+    }
+
+    function runFullTest() {
+      addResult('fullTest', '🚀 Запускаем полный тест...', 'info');
+      
+      // Очищаем предыдущие результаты
+      testResults = [];
+      document.querySelectorAll('[id$="Result"]').forEach(el => el.innerHTML = '');
+      
+      // Запускаем все тесты последовательно
+      setTimeout(() => testPageLoad(), 100);
+      setTimeout(() => testAuth(), 200);
+      setTimeout(() => testStandardLine(), 300);
+      setTimeout(() => testEconomyLine(), 400);
+      setTimeout(() => testPartitions(), 500);
+      setTimeout(() => testWindowsDoors(), 600);
+      setTimeout(() => testDelivery(), 700);
+      
+      setTimeout(() => {
+        const successCount = testResults.filter(r => r.type === 'success').length;
+        const errorCount = testResults.filter(r => r.type === 'error').length;
+        const totalCount = testResults.length;
+        
+        addResult('fullTest', `📊 Результаты: ${successCount} успешно, ${errorCount} ошибок из ${totalCount} тестов`, 
+                 errorCount === 0 ? 'success' : 'error');
+      }, 1000);
+    }
+
+    // Автоматически запускаем тест при загрузке
+    window.addEventListener('load', () => {
+      // Сначала загружаем основной калькулятор в iframe
+      loadMainCalculator();
+    });
+
+    function loadMainCalculator() {
+      const iframe = document.createElement('iframe');
+      iframe.src = 'index.html';
+      iframe.style.display = 'none';
+      iframe.onload = () => {
+        setTimeout(runFullTest, 1000);
+      };
+      document.body.appendChild(iframe);
+    }
+  </script>
+</body>
+</html>
