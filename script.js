@@ -25,6 +25,9 @@ const USERS = getUsers();
 
 /* === 1. Аутентификация ==================== */
 function authenticate(){
+  // Проверяем принудительный выход перед аутентификацией
+  checkForceLogoutOnLoad();
+  
   const login    = document.getElementById('login').value.trim();
   const password = document.getElementById('password').value.trim();
   const errBox   = document.getElementById('auth-error');
@@ -70,6 +73,9 @@ function checkForceLogoutOnLoad() {
 
 /* === 2. Выход ============================= */
 function logout(){
+  // Проверяем принудительный выход перед выходом
+  checkForceLogoutOnLoad();
+  
   localStorage.removeItem('houseCalcUser');
   location.reload();        // перезагрузить страницу – достаточно
 }
@@ -80,6 +86,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
   checkForceLogoutOnLoad();
   
   if(localStorage.getItem('houseCalcUser')){
+    // Проверяем принудительный выход перед показом калькулятора
+    checkForceLogoutOnLoad();
+    
     document.getElementById('auth-container').classList.add('hidden');
     document.getElementById('calc-container').classList.remove('hidden');
     handleTypeChange();
@@ -880,6 +889,8 @@ updateVerandaOptions();
 const addrInput   = document.getElementById('inpAddr');
 const suggBox     = document.getElementById('suggestions');
 
+// Дебаунс для ввода адреса
+let addressInputTimeout;
 addrInput.addEventListener('input', () => {
     const q = addrInput.value.trim();
     if (q.length < 3) {            // меньше 3-х символов — ничего не показываем
@@ -887,8 +898,13 @@ addrInput.addEventListener('input', () => {
         return;
     }
 
-    if (typeof ymaps !== 'undefined') {
-    ymaps.geocode(q, { results: 5 }).then(res => {
+    // Очищаем предыдущий таймаут
+    clearTimeout(addressInputTimeout);
+    
+    // Устанавливаем новый таймаут (500мс задержка)
+    addressInputTimeout = setTimeout(() => {
+        if (typeof ymaps !== 'undefined') {
+        ymaps.geocode(q, { results: 5 }).then(res => {
         const items = res.geoObjects.toArray();
         if (!items.length) {
             suggBox.style.display = 'none';
@@ -915,11 +931,12 @@ addrInput.addEventListener('input', () => {
 
             suggBox.appendChild(div);
         });
-    }).catch(err => {
-        console.error('geocode error', err);
-        suggBox.style.display = 'none';
-    });
-    }
+        }).catch(err => {
+            console.error('geocode error', err);
+            suggBox.style.display = 'none';
+        });
+        }
+    }, 500); // 500мс задержка
 });
 
 // клик мимо блока — закрываем подсказки
@@ -1209,6 +1226,9 @@ function updateStaticPriceLabels(){
 
 
 function handleTypeChange() {
+  // Проверяем принудительный выход перед изменением типа
+  checkForceLogoutOnLoad();
+  
   const type = selType.value;
   const cfg  = CONFIG[type];
   const isEconomy = cfg.isEconomy || false;
@@ -1847,6 +1867,9 @@ function getModPrice(type, w, l) {
    8. calculate — основная функция расчёта
 ------------------------------------------------------------------ */
 async function calculate(){
+  // Проверяем принудительный выход перед каждым расчетом
+  checkForceLogoutOnLoad();
+  
   const type = selType.value;
   const cfg = CONFIG[type];
   const isEconomy = cfg.isEconomy || false;
