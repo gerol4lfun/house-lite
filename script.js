@@ -638,7 +638,6 @@ const ECONOMY_EXTRAS = {
 function populateEconomyPileOptions() {
   const type = selType.value;
   const cfg = CONFIG[type];
-  console.log('populateEconomyPileOptions called for type:', type, 'isEconomy:', cfg.isEconomy);
   if (!cfg.isEconomy) return;
   
   const w = parseFloat(inpWidth.value) || 0;
@@ -649,8 +648,6 @@ function populateEconomyPileOptions() {
   const selEconomySvaiType = document.getElementById('selEconomySvaiType');
   
   if (selEconomySvaiType) {
-    console.log('populateEconomyPileOptions: clearing and filling selEconomySvaiType for economy type:', type);
-    console.log('populateEconomyPileOptions: recommendation:', recommendation);
     
     // Полностью очищаем и заполняем заново
     selEconomySvaiType.innerHTML = '';
@@ -675,14 +672,7 @@ function populateEconomyPileOptions() {
       });
     }
     
-    console.log('populateEconomyPileOptions: final options count:', selEconomySvaiType.options.length);
-    console.log('populateEconomyPileOptions: all options:', Array.from(selEconomySvaiType.options).map(opt => opt.textContent));
     
-    // Проверяем, что опции действительно добавились
-    setTimeout(() => {
-      console.log('populateEconomyPileOptions: AFTER 100ms - options count:', selEconomySvaiType.options.length);
-      console.log('populateEconomyPileOptions: AFTER 100ms - all options:', Array.from(selEconomySvaiType.options).map(opt => opt.textContent));
-    }, 100);
   }
 }
 
@@ -690,7 +680,6 @@ function populateEconomyPileOptions() {
 function updateSvaiRecommendation() {
   const type = selType.value;
   const cfg = CONFIG[type];
-  console.log('updateSvaiRecommendation called for type:', type, 'isEconomy:', cfg.isEconomy);
   if (!cfg.isEconomy) return;
   
   const w = parseFloat(inpWidth.value) || 0;
@@ -895,7 +884,6 @@ addrInput.addEventListener('input', () => {
     const q = addrInput.value.trim();
     if (q.length < 3) {            // меньше 3-х символов — ничего не показываем
         suggBox.style.display = 'none';
-        calculate(); // Обновляем КП при изменении адреса
         return;
     }
 
@@ -1082,12 +1070,10 @@ updateStaticPriceLabels();
     const economyPilesBlock = document.getElementById('economyPilesBlock');
     
     if (!cfg.isEconomy) {
-      console.log('Force calling populatePileOptions on page load');
       if (standardPilesBlock) standardPilesBlock.style.display = 'block';
       if (economyPilesBlock) economyPilesBlock.style.display = 'none';
       populatePileOptions();
     } else {
-      console.log('Force calling populateEconomyPileOptions on page load');
       if (standardPilesBlock) standardPilesBlock.style.display = 'none';
       if (economyPilesBlock) economyPilesBlock.style.display = 'block';
       populateEconomyPileOptions();
@@ -1096,12 +1082,9 @@ updateStaticPriceLabels();
     // Добавляем обработчик для chkMouseNew после загрузки всех элементов
     const chkMouseNew = document.getElementById('chkMouseNew');
     if (chkMouseNew) {
-      console.log('Adding event listener to chkMouseNew element (delayed):', chkMouseNew);
       chkMouseNew.addEventListener("change", function() {
-        console.log('chkMouseNew changed, checked:', chkMouseNew.checked);
         calculate();
       });
-      console.log('Event listener added successfully (delayed)');
     } else {
       console.error('chkMouseNew element not found (delayed)!');
     }
@@ -1230,12 +1213,6 @@ function handleTypeChange() {
   const cfg  = CONFIG[type];
   const isEconomy = cfg.isEconomy || false;
   
-  console.log('handleTypeChange:', type, 'isEconomy:', isEconomy);
-  console.log('handleTypeChange: cfg.svai exists:', !!cfg.svai);
-  if (cfg.svai) {
-    console.log('handleTypeChange: cfg.svai.prices:', cfg.svai.prices);
-    console.log('handleTypeChange: cfg.svai.recommendations:', cfg.svai.recommendations);
-  }
 
   // текущая крыша
   const roof = document.querySelector('input[name="roof"]:checked').value;
@@ -1367,10 +1344,8 @@ if (isEconomy) {
   
   // Показываем только блок эконом-опций
   const economyExtras = document.getElementById('economyExtras');
-  console.log('economyExtras found:', !!economyExtras);
   if (economyExtras) {
     economyExtras.style.display = 'block';
-    console.log('economyExtras shown');
   }
   
   // Показываем блок способа доставки для эконом-линейки
@@ -1488,7 +1463,6 @@ if (isEconomy) {
   const economyPilesBlock = document.getElementById('economyPilesBlock');
   
   if (!cfg.isEconomy) {
-    console.log('Calling populatePileOptions for standard line:', type);
     if (standardPilesBlock) standardPilesBlock.style.display = 'block';
     if (economyPilesBlock) economyPilesBlock.style.display = 'none';
   populatePileOptions();
@@ -1499,7 +1473,6 @@ if (isEconomy) {
       pileHint.textContent = '💡 Количество свай рассчитывается по размеру строения';
     }
   } else {
-    console.log('Calling populateEconomyPileOptions for economy line:', type);
     if (standardPilesBlock) standardPilesBlock.style.display = 'none';
     if (economyPilesBlock) economyPilesBlock.style.display = 'block';
     populateEconomyPileOptions();
@@ -1523,30 +1496,23 @@ function populatePileOptions () {
   const w    = +inpWidth.value;
   const l    = +inpLength.value;
 
-  console.log('populatePileOptions called for type:', type, 'w:', w, 'l:', l);
-  console.log('populatePileOptions: timestamp:', new Date().toISOString());
 
   // ПРОВЕРЯЕМ: если это эконом-линейка, НЕ заполняем сваи здесь!
   const cfg = CONFIG[type];
   if (cfg.isEconomy) {
-    console.log('populatePileOptions: SKIPPING for economy line, should use populateEconomyPileOptions');
     return;
   }
 
   const cnt  = getPileCount(type, w, l);
-  console.log('populatePileOptions: pile count calculated:', cnt);
 
   // 👉  для домов Ø76 не показываем
   const skip76 = (type === "house" && cnt > 12);
 
   const selSvaiType = document.getElementById('selSvaiType');
   if (selSvaiType) {
-    console.log('populatePileOptions: clearing and filling selSvaiType for type:', type);
     selSvaiType.innerHTML = '<option value="">— без свай —</option>';
 
     // Используем только PILES_STANDARD для обычных линеек
-    console.log('populatePileOptions: using PILES_STANDARD data');
-    console.log('populatePileOptions: pilesData:', PILES_STANDARD);
 
     Object.entries(PILES_STANDARD).forEach(([dim, pricePerUnit]) => {
     if (skip76 && dim.includes("×76")) return;
@@ -1557,11 +1523,6 @@ function populatePileOptions () {
       `<option value="${dim}">${dim} × ${cnt} шт (${formatPrice(priceGrossPerUnit)} ₽/шт)</option>`;
   });
     
-    console.log('populatePileOptions: final options count:', selSvaiType.options.length);
-    console.log('populatePileOptions: first option text:', selSvaiType.options[0]?.textContent);
-    console.log('populatePileOptions: all options:', Array.from(selSvaiType.options).map(opt => opt.textContent));
-  } else {
-    console.log('populatePileOptions: selSvaiType not found!');
   }
 }
 
@@ -1897,7 +1858,6 @@ async function calculate(){
     return;
   }
   
-  // console.log('calculate() called, chkMouseNew.checked:', chkMouseNew.checked);
 
     /* ---   ОБЪЯВЛЯЕМ СРАЗУ, чтобы не было ReferenceError   --- */
   const pkg = [];                  // список «Комплектация»
@@ -3332,13 +3292,13 @@ async function getKm(address, isEconomy = false){
     // 4. Показываем под полем адреса
     document.getElementById('kmInfo').textContent =
           km.toFixed(1).replace('.', ',') + ' км';
-    
+ 
     // 5. Возвращаем километраж (calculate() уже вызван выше)
     return km;
   }catch(e){
     console.error("Ошибка Яндекс.Карт:", e);
-    return null;
-  }
+  return null;
+}
 }
   // Сброс всех фильтров и результата
 function resetFilters() {
