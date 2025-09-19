@@ -9,16 +9,16 @@ function getUsers() {
   // Дефолтные пользователи
   return [
     {login:"admin",     password:"NewAdmPassword123!", isAdmin: true},
-    {login:"Юлия",      password:"NewYuliaPass456!"},
-    {login:"Руслан",    password:"NewRuslanPass789!"},
-    {login:"Ольга",     password:"NewOlgaPass321!"},
-    {login:"Екатерина", password:"NewEkaterinaPass654!"},
-    {login:"Manager6",  password:"NewManager6Pass987!"},
-    {login:"Manager7",  password:"NewManager7Pass135!"},
-    {login:"Manager8",  password:"NewManager8Pass246!"},
-    {login:"Manager9",  password:"NewManager9Pass369!"},
-    {login:"Manager10", password:"NewManager10Pass147!"}
-  ];
+  {login:"Юлия",      password:"NewYuliaPass456!"},
+  {login:"Руслан",    password:"NewRuslanPass789!"},
+  {login:"Ольга",     password:"NewOlgaPass321!"},
+  {login:"Екатерина", password:"NewEkaterinaPass654!"},
+  {login:"Manager6",  password:"NewManager6Pass987!"},
+  {login:"Manager7",  password:"NewManager7Pass135!"},
+  {login:"Manager8",  password:"NewManager8Pass246!"},
+  {login:"Manager9",  password:"NewManager9Pass369!"},
+  {login:"Manager10", password:"NewManager10Pass147!"}
+];
 }
 
 const USERS = getUsers();
@@ -3333,36 +3333,12 @@ async function getKm(address, isEconomy = false){
     document.getElementById('kmInfo').textContent =
           km.toFixed(1).replace('.', ',') + ' км';
     
-    // 5. Обновляем КП после успешного построения маршрута
-    calculate();
- 
-// открыть карточку адреса (с левой панелью и кнопкой «Маршрут»)
-const [lat, lon] = coords;                  // ymaps → [lat, lon]
-const ll = `${lon},${lat}`;                 // в URL нужно lon,lat
-const urlCard = `https://yandex.ru/maps/?text=${encodeURIComponent(address)}&ll=${ll}&z=16`;
-
-const link = document.getElementById('mapLink');
-link.href = urlCard;
-link.textContent = address;
-link.style.display = '';
-document.getElementById('kmSep').style.display = '';
-
-
-    // 5. Проверяем лимит 250 км
-    if (km > MAX_KM){
-      alert(`Доставка максимум ${MAX_KM} км от МКАД`);
-      return null;
-    }
-
-    // 6. Рисуем маршрут на карте
-    map.geoObjects.removeAll();
-    map.geoObjects.add(route);
-
-    return km;             // ← вернули число для расчётов
+    // 5. Возвращаем километраж (calculate() уже вызван выше)
+    return km;
   }catch(e){
-  console.error("Ошибка Яндекс.Карт:", e);
-  return null;
-}
+    console.error("Ошибка Яндекс.Карт:", e);
+    return null;
+  }
 }
   // Сброс всех фильтров и результата
 function resetFilters() {
