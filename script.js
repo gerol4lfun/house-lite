@@ -156,12 +156,21 @@ function getLabel(opt) {
 
 // Базовые тарифы
 const RATE    = { lom:{ base:10450 }, gable:{ base:13750 } };
-const DELIV = {
-  "6x4": 180,                 // 1-я группа
-  "6x5": 200, "6x6": 200, "6x7": 200,   // 2-я группа
-  "6x8": 300, "6x9": 300, "6x10": 300,  // 3-я группа
-  "8x8": 300, "9x8": 300                // большие
-};
+// Логика доставки домов по площади (включая веранду)
+// 1 машина = 18м², далее шагом +18м² = +1 машина, +100₽/км
+function getHouseDeliveryRate(totalArea) {
+  if (totalArea <= 24) return { vehicles: 1, rate: 180 };
+  if (totalArea <= 42) return { vehicles: 2, rate: 200 };
+  if (totalArea <= 60) return { vehicles: 3, rate: 300 };
+  if (totalArea <= 78) return { vehicles: 4, rate: 400 };
+  if (totalArea <= 96) return { vehicles: 5, rate: 500 };
+  if (totalArea <= 114) return { vehicles: 6, rate: 600 };
+  if (totalArea <= 132) return { vehicles: 7, rate: 700 };
+  
+  // Дальше шагом +18м², +1 машина, +100₽/км
+  const step = Math.floor((totalArea - 132) / 18) + 1;
+  return { vehicles: 7 + step, rate: 700 + (step * 100) };
+}
 const MAX_KM = 250;      // лимит: 250 км от МКАД
 const DEPOT = [55.621800, 37.441432];   // точка отгрузки (обычная линейка)
 const DEPOT_ECONOMY = [55.443806, 37.296654];   // точка отгрузки (эконом-линейка)
@@ -431,7 +440,6 @@ const CONFIG = {
     widths:[6,7,8,9,10],
     lengths:[4,5,6,7,8,9,10],
     rates: RATE,
-    deliv: DELIV,
     isEconomy: false
   },
   // НОВАЯ ЭКОНОМ-ЛИНЕЙКА (цены из прайса)
@@ -859,8 +867,10 @@ ymaps.ready(() => {
           });
           
           // Добавляем маркер базы
+          // Показываем базовую точку (стандартная линейка по умолчанию)
           const baseMarker = new ymaps.Placemark(DEPOT, {
-            balloonContent: 'Наша база'
+            balloonContent: 'Основная база (стандартная линейка)',
+            isBaseMarker: true
           }, {
             preset: 'islands#redDotIcon'
           });
@@ -891,6 +901,16 @@ const suggBox     = document.getElementById('suggestions');
 
 // Дебаунс для ввода адреса
 let addressInputTimeout;
+
+// Кэш для маршрутов (защита от повторных запросов)
+const routeCache = new Map();
+const MAX_CACHE_SIZE = 100;
+const CACHE_EXPIRY = 30 * 60 * 1000; // 30 минут
+
+// Счетчик запросов (защита от лимитов API)
+let requestCount = 0;
+const MAX_REQUESTS_PER_MINUTE = 10;
+let lastRequestTime = 0;
 addrInput.addEventListener('input', () => {
     const q = addrInput.value.trim();
     if (q.length < 3) {            // меньше 3-х символов — ничего не показываем
@@ -932,7 +952,7 @@ addrInput.addEventListener('input', () => {
             suggBox.appendChild(div);
         });
         }).catch(err => {
-            console.error('geocode error', err);
+            console.warn('Ошибка геокодирования (это нормально):', err.message || err);
             suggBox.style.display = 'none';
         });
         }
@@ -1182,6 +1202,13 @@ function updateStaticPriceLabels(){
     const p = ROOFMAT[opt.value] || 0;
     if (p > 0){
       opt.textContent = opt.textContent.replace(/\(.*?₽\/м²\)/, `(${formatPrice(grossInt(p))} ₽/м²)`);
+    }
+    
+    // Обновляем названия металлочерепицы
+    if (opt.value === 'tile_lom') {
+      opt.textContent = `Металлочерепица (односкатная крыша) (${formatPrice(grossInt(p))} ₽/м²)`;
+    } else if (opt.value === 'tile_gable') {
+      opt.textContent = `Металлочерепица (двускатная крыша) (${formatPrice(grossInt(p))} ₽/м²)`;
     }
   });
 
@@ -1504,7 +1531,41 @@ if (isEconomy) {
     }
   }
   
+  // Обновляем маркер базы на карте в зависимости от типа
+  updateBaseMarkerOnMap(type);
+  
   updateStaticPriceLabels();
+}
+
+// Функция обновления маркера базы на карте
+function updateBaseMarkerOnMap(type) {
+  if (typeof map === 'undefined' || !map) return;
+  
+  // Очищаем только маркеры базы (оставляем маршрут если есть)
+  const geoObjects = map.geoObjects.getIterator();
+  const objectsToRemove = [];
+  
+  geoObjects.each(function(obj) {
+    if (obj.properties && obj.properties.get('isBaseMarker')) {
+      objectsToRemove.push(obj);
+    }
+  });
+  
+  objectsToRemove.forEach(obj => map.geoObjects.remove(obj));
+  
+  // Определяем правильную базу
+  const isEconomy = type.includes('economy');
+  const depot = isEconomy ? DEPOT_ECONOMY : DEPOT;
+  const baseName = isEconomy ? 'Производство эконом-строений' : 'Основная база';
+  
+  // Добавляем новый маркер базы
+  const baseMarker = new ymaps.Placemark(depot, {
+    balloonContent: baseName,
+    isBaseMarker: true
+  }, {
+    preset: 'islands#redDotIcon'
+  });
+  map.geoObjects.add(baseMarker);
 }
 
 
@@ -1957,7 +2018,12 @@ const verRoof = document.querySelector('input[name="verRoofType"]:checked')?.val
   /* ===== 8.2. Базовая стоимость и доставка ===== */
   const area = w * l;
   // ── подготовка доставки ─────────────────────────────
-const veh = (l > 4) ? 2 : 1;      // 1 или 2 машины
+// Логика определения количества машин для бытовок и хозблоков:
+// 1 машина — площадь ≤ 18м² (включая веранду)
+// 2 машины — площадь > 18м²
+const totalArea = warmArea + (verArea || 0); // основная площадь + веранда
+const isLargeGabarit = (totalArea > 18);
+const veh = (type === "house") ? 1 : (isLargeGabarit ? 2 : 1);  // дома не трогаем
 
 // 1. минимальная стоимость выезда
 const minDeliv = (type === "house")
@@ -1977,7 +2043,9 @@ if (address) {
       console.warn("Не удалось построить маршрут");
       hasRoute = false;
     } else {
-  hasRoute = true;
+      hasRoute = true;
+      // Пересчитываем доставку с новым километражем
+      console.log("Маршрут построен, пересчитываем доставку...");
     }
   } catch (error) {
     console.error("Ошибка при построении маршрута:", error);
@@ -1987,16 +2055,18 @@ if (address) {
 
 // 3. если маршрута нет (пустой адрес) — доставка = минималка
 if (!hasRoute) {
-  del = gross50(minDeliv); // показываем "от ..." уже с комиссией
+  del = Math.ceil(minDeliv / 50) * 50; // показываем "от ..." без наценки, только округление к 50₽
 } else {
   let rate;
   if (type === "house") {
-    const key = `${w}x${l}`;
-    rate = DELIV[key] || 300;
+    // Новая логика: расчет по площади (включая веранду)
+    const totalArea = warmArea + (verArea || 0); // основная площадь + веранда
+    const deliveryInfo = getHouseDeliveryRate(totalArea);
+    rate = deliveryInfo.rate;
     let cost = rate * km;
     if (cost < minDeliv) cost = minDeliv;
     const cost50 = Math.ceil(cost / 50) * 50; // по прайсу к 50
-    del = gross50(cost50);                    // +10% и снова к 50 ₽
+    del = cost50;                             // без наценки, только округление к 50 ₽
   } else if (isEconomy) {
     // Эконом-линейка: выбор типа доставки (из прайса)
     const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
@@ -2036,7 +2106,7 @@ if (!hasRoute) {
   let cost = rate * km;
   if (cost < minDeliv) cost = minDeliv;
   const cost50 = Math.ceil(cost / 50) * 50; // по прайсу к 50
-  del = gross50(cost50);                    // +10% и снова к 50 ₽
+  del = cost50;                             // без наценки, только округление к 50 ₽
   }
 }
 
@@ -3296,6 +3366,35 @@ async function getKm(address, isEconomy = false){
       return null;
     }
     
+    // Защита от лимитов API
+    const now = Date.now();
+    if (now - lastRequestTime < 60000) { // меньше минуты
+      if (requestCount >= MAX_REQUESTS_PER_MINUTE) {
+        console.warn("Превышен лимит запросов к API. Попробуйте позже.");
+        return null;
+      }
+    } else {
+      requestCount = 0; // сброс счетчика
+    }
+    
+    // Проверяем кэш
+    const cacheKey = `${address}_${isEconomy}`;
+    const cached = routeCache.get(cacheKey);
+    if (cached && (now - cached.timestamp) < CACHE_EXPIRY) {
+      console.log("Используем кэшированный маршрут");
+      displayCachedRoute(cached.route, cached.depot, cached.coords, address);
+      // Обновляем дистанцию для кэшированного маршрута
+      const kmInfo = document.getElementById('kmInfo');
+      if (kmInfo) {
+        kmInfo.textContent = cached.km.toFixed(1).replace('.', ',') + ' км';
+        console.log('Дистанция из кэша:', cached.km + ' км');
+      }
+      return cached.km;
+    }
+    
+    requestCount++;
+    lastRequestTime = now;
+    
     // 1. Ищем координаты введённого адреса
     const res   = await ymaps.geocode(address,{results:1});
     const obj   = res.geoObjects.get(0);
@@ -3307,21 +3406,151 @@ async function getKm(address, isEconomy = false){
     const depot = isEconomy ? DEPOT_ECONOMY : DEPOT;
     
     // 3. Строим маршрут «база → клиент»
-    const route = await ymaps.route([depot, coords], { avoidTolls:true });
+    // Обходим платные дороги и Москву (едем по МКАД)
+    console.log('Строим маршрут от', depot, 'до', coords);
+    const route = await ymaps.route([depot, coords], { 
+      avoidTolls: true,        // обход платных дорог
+      avoidTraffic: true,      // обход пробок
+      avoidHighways: false     // разрешаем МКАД
+    });
+
+    console.log('Маршрут построен:', route);
+    console.log('Тип маршрута:', typeof route);
+    console.log('Методы маршрута:', Object.getOwnPropertyNames(route));
 
     // 3. Длина маршрута в км
     const km = route.getLength() / 1000;
+    console.log('Длина маршрута:', km, 'км');
 
-    // 4. Показываем под полем адреса
-    document.getElementById('kmInfo').textContent =
-          km.toFixed(1).replace('.', ',') + ' км';
+    // 4. Сохраняем в кэш
+    if (routeCache.size >= MAX_CACHE_SIZE) {
+      // Удаляем самый старый элемент
+      const firstKey = routeCache.keys().next().value;
+      routeCache.delete(firstKey);
+    }
+    
+    routeCache.set(cacheKey, {
+      route: route,
+      depot: depot,
+      coords: coords,
+      km: km,
+      timestamp: now
+    });
+
+    // 5. Отображаем маршрут на карте
+    console.log('Строим маршрут от', depot, 'до', coords);
+    console.log('Длина маршрута:', km, 'км');
+    displayRouteOnMap(route, depot, coords, address, isEconomy);
+
+    // 6. Показываем под полем адреса
+    const kmInfo = document.getElementById('kmInfo');
+    if (kmInfo) {
+      kmInfo.textContent = km.toFixed(1).replace('.', ',') + ' км';
+      console.log('Дистанция обновлена:', km + ' км');
+    } else {
+      console.error('Элемент kmInfo не найден!');
+    }
+
+    // 7. Создаем ссылку на Яндекс.Карты с координатами клиента
+    createMapLink(coords, address);
  
-    // 5. Возвращаем километраж (calculate() уже вызван выше)
+    // 7. Пересчитываем доставку с новым километражем
+    // НЕ вызываем calculate() здесь, чтобы избежать бесконечного цикла
+    // calculate() уже был вызван перед getKm()
+ 
+    // 8. Возвращаем километраж
     return km;
   }catch(e){
     console.error("Ошибка Яндекс.Карт:", e);
   return null;
 }
+}
+
+// Функция отображения маршрута на карте
+function displayRouteOnMap(route, depot, coords, address, isEconomy) {
+  try {
+    console.log('Отображаем маршрут на карте:', { route: !!route, depot, coords, address, isEconomy });
+    
+    // Очищаем карту и добавляем маршрут с точками
+    map.geoObjects.removeAll();
+    
+    // Добавляем маршрут на карту
+    if (route) {
+      map.geoObjects.add(route);
+      console.log('Маршрут добавлен на карту');
+    } else {
+      console.warn("Маршрут не найден");
+    }
+  
+    // Добавляем точку А (производство)
+    const depotMarker = new ymaps.Placemark(depot, {
+      balloonContent: isEconomy ? 'Производство эконом-строений' : 'Основная база',
+      iconCaption: isEconomy ? 'А (Эконом)' : 'А (Стандарт)'
+    }, {
+      preset: 'islands#redCircleDotIcon',
+      iconColor: '#ff0000'
+    });
+    map.geoObjects.add(depotMarker);
+    
+    // Добавляем точку Б (клиент)
+    const clientMarker = new ymaps.Placemark(coords, {
+      balloonContent: `Адрес доставки: ${address}`,
+      iconCaption: 'Б (Клиент)'
+    }, {
+      preset: 'islands#blueCircleDotIcon',
+      iconColor: '#0066cc'
+    });
+    map.geoObjects.add(clientMarker);
+  
+  // Подгоняем карту к маршруту
+  try {
+    if (route.getBounds && typeof route.getBounds === 'function') {
+      map.setBounds(route.getBounds(), { checkZoomRange: true });
+    } else {
+      // Если getBounds недоступен, используем координаты точек
+      const bounds = [[Math.min(depot[0], coords[0]), Math.min(depot[1], coords[1])], 
+                      [Math.max(depot[0], coords[0]), Math.max(depot[1], coords[1])]];
+      map.setBounds(bounds, { checkZoomRange: true });
+    }
+  } catch (error) {
+    console.warn("Не удалось подогнать карту к маршруту:", error);
+  }
+  } catch (error) {
+    console.error("Ошибка отображения маршрута:", error);
+  }
+}
+
+// Функция отображения кэшированного маршрута
+function displayCachedRoute(route, depot, coords, address) {
+  console.log('Используем кэшированный маршрут:', { route: !!route, depot, coords, address });
+  displayRouteOnMap(route, depot, coords, address, depot === DEPOT_ECONOMY);
+  // Создаем ссылку на Яндекс.Карты с координатами клиента
+  createMapLink(coords, address);
+  // НЕ вызываем calculate() здесь, чтобы избежать бесконечного цикла
+}
+
+// Функция создания ссылки на Яндекс.Карты
+function createMapLink(coords, address) {
+  const mapLink = document.getElementById('mapLink');
+  const kmSep = document.getElementById('kmSep');
+  
+  if (mapLink && kmSep && coords) {
+    // Создаем ссылку в формате как в примерах пользователя
+    const lat = coords[0];
+    const lon = coords[1];
+    // Используем формат как в примерах: mode=whatshere с координатами точки
+    const mapUrl = `https://yandex.ru/maps/213/moscow/?ll=${lon},${lat}&mode=whatshere&whatshere%5Bpoint%5D=${lon},${lat}&whatshere%5Bzoom%5D=10&z=10`;
+    
+    mapLink.href = mapUrl;
+    mapLink.textContent = '📍 Адрес на карте';
+    mapLink.title = `Построить маршрут до ${address}`;
+    
+    // Показываем разделитель и ссылку
+    kmSep.style.display = 'inline';
+    mapLink.style.display = 'inline';
+    
+    console.log('Ссылка на карту создана:', mapUrl);
+  }
 }
   // Сброс всех фильтров и результата
 function resetFilters() {
@@ -3342,5 +3571,9 @@ function clearDelivery() {
   document.getElementById('mapLink').style.display = 'none';
   document.getElementById('kmSep').style.display   = 'none';
   document.getElementById('mapLink').removeAttribute('href');
-
+  document.getElementById('mapLink').textContent = '';
+  
+  // Очищаем кэш маршрутов при сбросе
+  routeCache.clear();
+  console.log("Кэш маршрутов очищен");
 }
