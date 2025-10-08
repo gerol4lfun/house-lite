@@ -242,11 +242,20 @@ const PART_TITLE = {
   p3: "Перегородка двусторонняя с утеплением 100 мм"
 };
 
-// Сваи для обычных линеек (без наценки)
+// Сваи для обычных линеек (БЕЗ наценки 10%)
+// Наша бригада: 76/1500 до 16 шт, 76/2000 до 9 шт
+// Отдельная бригада: 76/1500 от 17 шт, 76/2000 от 10 шт, все 89/108
 const PILES_STANDARD = {
-  "1.5×76":3000, "2.0×76":3600, "2.5×76":3700, "3.0×76":4000,
-  "2.0×89":3600, "2.5×89":4000, "3.0×89":4300,
-  "2.0×108":4300, "2.5×108":4700, "3.0×108":5000
+  "1.5×76":3350, // до 16 шт - наша бригада, от 17 шт - отдельная бригада
+  "2.0×76":3800, // до 9 шт - наша бригада, от 10 шт - отдельная бригада
+  "2.5×76":3800,
+  "3.0×76":4100,
+  "2.0×89":3700, // всегда отдельная бригада
+  "2.5×89":4000, // всегда отдельная бригада
+  "3.0×89":4400, // всегда отдельная бригада
+  "2.0×108":4500, // всегда отдельная бригада
+  "2.5×108":4900, // всегда отдельная бригада
+  "3.0×108":5400  // всегда отдельная бригада
 };
 
 // Сваи для эконом-линеек (с 10% наценкой)
@@ -255,59 +264,89 @@ const PILES_ECONOMY = {
   "2.0×89":4000, "2.5×89":4400, "3.0×89":4750,
   "2.0×108":4800, "2.5×108":5200, "3.0×108":5500
 };
-const PILE_COUNT = {
-  "6x4":12, "6x5":12, "6x6":16, "6x7":20,
-  "6x8":20, "6x9":24, "6x10":26, "8x8":28,
-  "9x8":30
-};
+// ═══════════════════════════════════════════════════════════════
+// НОВАЯ ЛОГИКА РАСЧЕТА СВАЙ ПО РЯДАМ
+// ═══════════════════════════════════════════════════════════════
 
-// ▸ точное количество свай для хозблоков / бытовок (2- и 3-метровая ширина)
-const PILE_COUNT_SMALL = {
-  "2x2":4,  "2x2.5":4, "2x3":4,
-  "2x4":6,  "2x5":6,   "2x6":6,
-  "3x2":4,  "3x2.5":4, "3x3":9,
-  "3x4":9,  "3x5":9,   "3x6":9,
-  /* ---- Ширина 2,5 м --------------------------------------- */
-  "2.5x2":4,    "2.5x2.5":4, "2.5x3":4,      // короткие
-  "2.5x4":6,    "2.5x5":6,   "2.5x6":6,      // длинные
- 
-  /* зеркальные варианты (когда 2,5 м — длина, а не ширина) */
-  "2x2.5":4,
-  "3x2.5":6,    "4x2.5":6,   "5x2.5":6, "6x2.5":6
-};
-// ▸ вернуть «правильное» количество свай по типу и размеру
-function getPileCount(type, w, l) {
-  // НОРМАЛИЗУЕМ ширины 2.1 → 2.0 и 2.3 → 2.5 (для совпадения с табличными ключами)
-  const norm = v => (v === 2.1 ? 2.0 : (v === 2.3 ? 2.5 : v));
-  const wn = norm(w);
-  const ln = norm(l);
-
-  // две записи одного и того же размера – «3x4» и «4x3»
-  const k1 = `${wn}x${ln}`;
-  const k2 = `${ln}x${wn}`;
-
-  // ── хозблок / бытовка ─────────────────────────────
-  if (type !== "house") {
-    if (PILE_COUNT_SMALL[k1] !== undefined) return PILE_COUNT_SMALL[k1];
-    if (PILE_COUNT_SMALL[k2] !== undefined) return PILE_COUNT_SMALL[k2];
+/**
+ * Рассчитывает количество свай по новой логике (ряды по длине)
+ * 
+ * @param {number} length - Длина строения (м)
+ * @param {number} width - Ширина строения (м)
+ * @param {number} verandaWidth - Ширина веранды (м), 0 если нет
+ * @param {boolean} isInsideVeranda - Веранда внутренняя (не увеличивает ширину)
+ * @returns {number} Количество свай
+ */
+function calculatePilesByRows(length, width, verandaWidth = 0, isInsideVeranda = false) {
+  // ВАЖНО: Для одинакового количества свай всегда берем большую сторону как "длину"
+  const actualLength = Math.max(length, width);
+  const actualWidth = Math.min(length, width);
+  
+  // 1. Определяем ряды по длине (каждые 3 м, края обязательно)
+  const rows = [];
+  for (let pos = 0; pos <= actualLength; pos += 3) {
+    rows.push(pos);
   }
+  // Добавляем последний ряд на краю, если он не совпадает с шагом
+  if (rows[rows.length - 1] !== actualLength) {
+    rows.push(actualLength);
+  }
+  
+  // 2. Определяем общую ширину (с верандой, если она не внутренняя)
+  let totalWidth = actualWidth;
+  if (verandaWidth > 0 && !isInsideVeranda) {
+    totalWidth += verandaWidth;
+  }
+  
+  // 3. Сваи в ряду: минимум 2, дальше по метру ширины (округление вверх)
+  const pilesPerRow = Math.max(2, Math.ceil(totalWidth));
+  
+  // 4. Итого свай
+  const totalPiles = rows.length * pilesPerRow;
+  
+  return totalPiles;
+}
 
-  // ── каркасный дом ─────────────────────────────────
-  if (PILE_COUNT[k1] !== undefined) return PILE_COUNT[k1];
-  if (PILE_COUNT[k2] !== undefined) return PILE_COUNT[k2];
-
-  // ── на всякий случай ─────────────────────────────
-  return 12;        // «безопасный» дефолт
+/**
+ * УСТАРЕВШАЯ функция - оставлена для совместимости с эконом-линейкой
+ * Для стандартной линейки используйте calculatePilesByRows()
+ */
+function getPileCount(type, w, l) {
+  // Для эконом-линейки используем старую логику (не трогаем)
+  const cfg = CONFIG[type];
+  if (cfg && cfg.isEconomy) {
+    // Старая логика для эконома
+    const PILE_COUNT_ECONOMY = {
+      "2x2":4,  "2x2.5":4, "2x3":4,
+      "2x4":6,  "2x5":6,   "2x6":6,
+      "3x2":4,  "3x2.5":4, "3x3":9,
+      "3x4":9,  "3x5":9,   "3x6":9,
+      "2.5x2":4, "2.5x2.5":4, "2.5x3":4,
+      "2.5x4":6, "2.5x5":6, "2.5x6":6,
+      "2x2.5":4,
+      "3x2.5":6, "4x2.5":6, "5x2.5":6, "6x2.5":6
+    };
+    
+    const k1 = `${w}x${l}`;
+    const k2 = `${l}x${w}`;
+    
+    if (PILE_COUNT_ECONOMY[k1] !== undefined) return PILE_COUNT_ECONOMY[k1];
+    if (PILE_COUNT_ECONOMY[k2] !== undefined) return PILE_COUNT_ECONOMY[k2];
+    return 6; // дефолт для эконома
+  }
+  
+  // Для стандартной линейки используем новую логику
+  return calculatePilesByRows(l, w, 0, false);
 }
 
 
 
 // Окна ПВХ / двери ПВХ (стандартная линейка)
 const WINDOWS = {
-  "50×50":{1:5500, 2:7000},
+  "50×50":{1:5500},
   "60×90":{1:7500},
   "60×120":{1:10000},
-  "60×180":{1:12000,2:17000},
+  "60×180":{1:12000},
   "100×100":{1:9000},
   "100×120":{1:11000,2:14000},
   "120×120":{1:13000},
@@ -317,10 +356,9 @@ const WINDOWS = {
   "140×150":{1:17000},
   "150×150":{1:17500},
   "150×100":{1:15000},
-  "150×180":{2:25000},
   "150×190":{1:25000},
   "180×190":{1:26000},
-  "90×205 дверь ПВХ":{2:35000}
+  "90×205 дверь ПВХ":{2:32000}
 };
 const WOOD_PRICES = {
   win: {                // окна
@@ -474,14 +512,7 @@ const CONFIG = {
         "6x2": 6, "6x2.2": 6, "6x2.5": 9, "6x2.7": 9, "6x3": 9, "6x4": 9,
         "7x2": 6, "7x2.2": 6, "7x2.5": 9, "7x3": 9
       },
-      // Цены на сваи
-      prices: {
-        "76x150": 4400,  // Ø76×1,5 м
-        "76x200": 4900,  // Ø76×2,0 м
-        "89x200": 5500,  // Ø89×2,0 м
-        "89x250": 5900,  // Ø89×2,5 м
-        "89x300": 6500   // Ø89×3,0 м
-      }
+      // Цены на сваи используются в коде напрямую
     },
     isEconomy: true
   },
@@ -516,22 +547,15 @@ bytovka_economy: {
       "6x2": 6, "6x2.2": 6, "6x2.5": 9, "6x2.7": 9, "6x3": 9, "6x4": 9,
       "7x2": 6, "7x2.2": 6, "7x2.4": 6, "7x2.5": 9, "7x3": 9
     },
-    // Цены на сваи (с наценкой 10%)
-    prices: {
-      "76x150": 4840,  // Ø76×1,5 м
-      "76x200": 5390,  // Ø76×2,0 м
-      "89x200": 6050,  // Ø89×2,0 м
-      "89x250": 6490,  // Ø89×2,5 м
-      "89x300": 7150   // Ø89×3,0 м
-    }
+    // Цены на сваи используются в коде напрямую
   },
   isEconomy: true
   }
 };
 // цена 1 м² для нестандартных размеров
 const NONSTD_RATE = {
-  bytovka: 8800,   // ₽/м²
-  hoblok:  6050    // ₽/м²
+  bytovka: 8800,   // ₽/м² (с наценкой 10%)
+  hoblok:  6050    // ₽/м² (с наценкой 10%)
 };
 
 // ДОПОЛНИТЕЛЬНЫЕ ОПЦИИ ДЛЯ ЭКОНОМ-ЛИНЕЙКИ (ЦЕНЫ С НАЦЕНКОЙ 10%)
@@ -546,17 +570,7 @@ const ECONOMY_EXTRAS = {
     "7x2": 5500, "7x2.2": 5500, "7x2.5": 6050, "7x3": 6050
   },
   
-  // Перегородки (с дверью наборной или глухие) - с наценкой 10%
-  partitions: {
-    // Оргалит
-    organlit: { "2": 6600, "2.2": 6600, "2.5": 7700, "3": 8250 },
-    // ОСП-9
-    osb: { "2": 7700, "2.2": 7700, "2.5": 8800, "3": 9900 },
-    // Вагонка "С"
-    vagonka: { "2": 13200, "2.2": 13200, "2.5": 15950, "3": 16500 },
-    // Для хозблоков (односторонняя, без двери)
-    hoblok: { "2": 5500, "2.2": 5500, "2.5": 7150, "3": 8250 }
-  },
+  // Перегородки - цены используются в коде напрямую
   
   // Внутренняя отделка (стены + потолок, по всему объёму) - с наценкой 10%
   interiorFinish: {
@@ -1082,6 +1096,14 @@ document.addEventListener('click', e => {
   const chkVaporBarrier = document.getElementById('chkVaporBarrier');
   const chkInteriorFinish = document.getElementById('chkInteriorFinish');
   const selVeranda = document.getElementById('selVeranda');
+  
+  // Дополнительные опции эконом-линейки
+  const chkInteriorOSB = document.getElementById('chkInteriorOSB');
+  const chkInteriorVagonka = document.getElementById('chkInteriorVagonka');
+  const chkFireProtectionFloor = document.getElementById('chkFireProtectionFloor');
+  const chkFireProtectionFrame = document.getElementById('chkFireProtectionFrame');
+  const chkInsulation100 = document.getElementById('chkInsulation100');
+  const chkCeilingInsulation = document.getElementById('chkCeilingInsulation');
 
   if (chkSteps) chkSteps.addEventListener("change", calculate);
   if (chkRamp75) chkRamp75.addEventListener("change", calculate);
@@ -1089,6 +1111,23 @@ document.addEventListener('click', e => {
   if (chkVaporBarrier) chkVaporBarrier.addEventListener("change", calculate);
   if (chkInteriorFinish) chkInteriorFinish.addEventListener("change", calculate);
   if (selVeranda) selVeranda.addEventListener("change", calculate);
+  
+  // Добавляем обработчики для всех опций эконом-линейки
+  // Обработчик для внутренней отделки (радио-кнопки)
+  const interiorFinishInputs = document.querySelectorAll('input[name="interiorFinish"]');
+  interiorFinishInputs.forEach(input => {
+    input.addEventListener("change", calculate);
+  });
+  if (chkFireProtectionFloor) chkFireProtectionFloor.addEventListener("change", calculate);
+  if (chkFireProtectionFrame) chkFireProtectionFrame.addEventListener("change", calculate);
+  if (chkInsulation100) chkInsulation100.addEventListener("change", calculate);
+  if (chkCeilingInsulation) chkCeilingInsulation.addEventListener("change", calculate);
+  
+  // Обработчики для типа крыши эконом-линейки
+  const economyRoofInputs = document.querySelectorAll('input[name="economyRoof"]');
+  economyRoofInputs.forEach(input => {
+    input.addEventListener("change", calculate);
+  });
 btnClearAddr.addEventListener("click", function() {
   clearDelivery();
   calculate(); // Обновляем КП при сбросе доставки
@@ -1584,26 +1623,30 @@ function populatePileOptions () {
     return;
   }
 
-  const cnt  = getPileCount(type, w, l);
+  // Используем новую логику расчета свай
+  // В калькуляторе: w = ширина, l = длина
+  // В документации: длина × ширина
+  // Поэтому передаем: длина = w, ширина = l
+  const cnt = calculatePilesByRows(w, l, 0, false);
 
-  // 👉  для домов Ø76 не показываем
+  // 👉  для домов Ø76 не показываем (если больше 12 свай)
   const skip76 = (type === "house" && cnt > 12);
 
   const selSvaiType = document.getElementById('selSvaiType');
   if (selSvaiType) {
     selSvaiType.innerHTML = '<option value="">— без свай —</option>';
 
-    // Используем только PILES_STANDARD для обычных линеек
-
+    // Используем PILES_STANDARD для обычных линеек с наценкой 10%
     Object.entries(PILES_STANDARD).forEach(([dim, pricePerUnit]) => {
-    if (skip76 && dim.includes("×76")) return;
-    if (dim === "1.5×76" && cnt > 12) return;
+      if (skip76 && dim.includes("×76")) return;
+      if (dim === "1.5×76" && cnt > 12) return;
 
-    const priceGrossPerUnit = grossInt(pricePerUnit); // показываем с комиссией
+      const priceWithMarkup = grossInt(pricePerUnit); // цена с наценкой 10%
+      const totalPrice = priceWithMarkup * cnt; // итоговая цена за все сваи
+      
       selSvaiType.innerHTML +=
-      `<option value="${dim}">${dim} × ${cnt} шт (${formatPrice(priceGrossPerUnit)} ₽/шт)</option>`;
-  });
-    
+        `<option value="${dim}">${dim} × ${cnt} шт — ${formatPrice(totalPrice)} ₽ (${formatPrice(priceWithMarkup)} ₽/шт)</option>`;
+    });
   }
 }
 
@@ -1685,6 +1728,9 @@ function addWindowRow () {
   qtyInp.addEventListener("change", function() {
     calculate(); // Обновляем КП при изменении
   });
+  qtyInp.addEventListener("input", function() {
+    calculate(); // Обновляем КП при вводе
+  });
   btnX.addEventListener("click", function() {
     row.remove();
     calculate(); // Обновляем КП при удалении
@@ -1720,6 +1766,9 @@ function addPartitionRow() {
   // Обработчик изменения количества
   qtyInput.addEventListener("change", function() {
     calculate(); // Обновляем КП при изменении
+  });
+  qtyInput.addEventListener("input", function() {
+    calculate(); // Обновляем КП при вводе
   });
   
   // Обработчик удаления
@@ -1809,12 +1858,15 @@ function addWindowRowEconomy () {
 
     if (t === "pvcWin") {
       const cam = selCam.value;
-      Object.entries(ECONOMY_WINDOWS).forEach(([sz, cams]) => {
-        if (cams[cam]) {
-          const pGross = cams[cam]; // уже с наценкой 10%
-          selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(pGross)} ₽)</option>`;
-        }
-      });
+      // Для эконом-линейки только однокамерные окна
+      if (cam === "1") {
+        Object.entries(ECONOMY_WINDOWS).forEach(([sz, cams]) => {
+          if (cams[cam]) {
+            const pGross = cams[cam]; // уже с наценкой 10%
+            selSize.innerHTML += `<option value="${sz}">${sz} (${formatPrice(pGross)} ₽)</option>`;
+          }
+        });
+      }
 
     } else if (t === "pvcDoor") {
       Object.entries(ECONOMY_WINDOWS).forEach(([sz, cams]) => {
@@ -1856,6 +1908,9 @@ function addWindowRowEconomy () {
   });
   qtyInp.addEventListener("change", function() {
     calculate(); // Обновляем КП при изменении
+  });
+  qtyInp.addEventListener("input", function() {
+    calculate(); // Обновляем КП при вводе
   });
   btnX.addEventListener("click", function() {
     row.remove();
@@ -2034,6 +2089,9 @@ del = 0;                  // сюда положим итог доставки
 let hasRoute = false;         // построен ли маршрут
 let km = 0;                   // километраж
 
+// Определяем тип доставки для эконом-линейки
+const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
+
 // 2. если адрес есть — пытаемся построить маршрут
 const address = inpAddr.value.trim();
 if (address) {
@@ -2055,7 +2113,16 @@ if (address) {
 
 // 3. если маршрута нет (пустой адрес) — доставка = минималка
 if (!hasRoute) {
-  del = Math.ceil(minDeliv / 50) * 50; // показываем "от ..." без наценки, только округление к 50₽
+  if (isEconomy) {
+    // Для эконом-линейки учитываем тип доставки
+    const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
+    const minCost = (deliveryType === 'manipulator') ? 10000 : 7000;
+    // Добавляем 10% наценку к минимальной стоимости
+    const minCostWithMarkup = Math.round(minCost * 1.1);
+    del = Math.ceil(minCostWithMarkup / 50) * 50; // показываем "от ..." с наценкой, округление к 50₽
+  } else {
+    del = Math.ceil(minDeliv / 50) * 50; // показываем "от ..." без наценки, только округление к 50₽
+  }
 } else {
   let rate;
   if (type === "house") {
@@ -2069,7 +2136,6 @@ if (!hasRoute) {
     del = cost50;                             // без наценки, только округление к 50 ₽
   } else if (isEconomy) {
     // Эконом-линейка: выбор типа доставки (из прайса)
-    const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
     const needsAssembly = document.getElementById('chkAssembly')?.checked;
     
     if (deliveryType === 'manipulator') {
@@ -2088,17 +2154,13 @@ if (!hasRoute) {
       // Добавляем 10% наценку к доставке
       cost = Math.round(cost * 1.1 / 50) * 50;
       
-      // Добавляем сборку только если выбрано
-      if (needsAssembly) {
-        cost += CONFIG[type].delivery.assembly;
+      // Добавляем сборку только если выбрано (с наценкой 10%)
+      // Для газели сборка уже включена в базовую цену
+      if (needsAssembly && deliveryType !== 'kit') {
+        cost += Math.round(CONFIG[type].delivery.assembly * 1.1); // 7000 + 10% = 7700
       }
       
       del = cost;
-    }
-    
-    // Для эконом-линейки: если сборка на участке, добавляем 7000 к базовой цене
-    if (needsAssembly && isEconomy) {
-      basePrice += 7000;
     }
   } else {
     // Обычные линейки (хозблок, бытовка)
@@ -2117,12 +2179,22 @@ if (type === 'house') {
   // если веранда «внутри» – забираем её квадратуру из расчёта
   const paidArea = isInsideVer ? warmArea : area;   // warmArea = (w*l - verArea)
 
-  basePrice = Math.ceil(paidArea * RATE[roof].base / 10) * 10;
+  // Специальная логика для домов с ломаной крышей
+  // По умолчанию: 10,450₽/м² (с отделкой ОСБ)
+  // С вагонкой BC-класс: 11,000₽/м² (вместо ОСБ)
+  let ratePerSqm = RATE[roof].base; // 10,450₽/м² (ОСБ)
+  
+  if (roof === 'lom' && selInRep && selInRep.value === 'osb_vag') {
+    // Если выбрана замена ОСБ → вагонка B-C, базовая цена становится 11,000₽/м²
+    ratePerSqm = 11000;
+  }
+
+  basePrice = Math.ceil(paidArea * ratePerSqm / 10) * 10;
 
 } else if (isEconomy) {                        // 2. эконом-линейка
-  // Если выбрана веранда из прайса - используем её цену + 10% наценка
+  // Если выбрана веранда из прайса - используем её цену (уже с наценкой 10%)
   if (verandaFromPrice) {
-    basePrice = Math.round(verandaFromPrice.price * 1.1 / 50) * 50; // +10% и округление к 50
+    basePrice = Math.round(verandaFromPrice.price / 50) * 50; // только округление к 50
   } else {
     const tbl = CONFIG[type].basePrice;
     
@@ -2132,18 +2204,14 @@ if (type === 'house') {
     // Если не найдено - пробуем перепутанные стороны
     if (!basePrice) basePrice = tbl[`${lReal}x${wReal}`] ?? 0;
     
-    // Если все еще не найдено - используем расчет по площади
-    if (!basePrice) {
-      const baseArea = (isInsideVer && vw && vd) ? (wReal * lReal - verArea) : (wReal * lReal);
-      const ratePerSqm = (type === 'hoblok_economy') ? 6000 : 8000; // примерные ставки
-      basePrice = Math.round(baseArea * ratePerSqm / 100) * 100;
-    }
+    // Для эконом-линейки расчет по площади НЕ ДОПУСТИМ - только размеры из прайса
+    // Если размер не найден - basePrice остается 0
   }
   
-  // Автоматически добавляем 7000 к цене при выборе газели (сборка в подарок)
-  const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
-  if (deliveryType === 'kit') {
-    basePrice += 7000;
+  // Для эконом-линейки: если выбрана газель, добавляем сборку к базовой цене
+  // НО НЕ для веранд из прайса - там сборка уже включена
+  if (deliveryType === 'kit' && isEconomy && !verandaFromPrice) {
+    basePrice += Math.round(7000 * 1.1); // 7000 + 10% = 7700
   }
   
 } else {                                        // 3. бытовка или хозблок (обычная)
@@ -2209,43 +2277,41 @@ function addExtra(sum, label, skipMarkup = false){
     // Утепление потолка 50 мм (только для бытовок эконом)
     if (type === 'bytovka_economy' && document.getElementById('chkCeilingInsulation')?.checked) {
       const price = ECONOMY_EXTRAS.ceilingInsulation[sizeKey];
-      if (price) addExtra(price, "Утепление потолка 50 мм");
+      if (price) addExtra(price, "Утепление потолка 50 мм", true);
     }
     
-    // Внутренняя отделка ОСП-9 (если выбрано)
-    if (document.getElementById('chkInteriorOSB')?.checked) {
+    // Внутренняя отделка (только одна опция)
+    const interiorFinish = document.querySelector('input[name="interiorFinish"]:checked')?.value;
+    if (interiorFinish === 'osb') {
       const price = ECONOMY_EXTRAS.interiorFinish.osb[sizeKey];
-      if (price) addExtra(price, "Внутренняя отделка ОСП-9");
-    }
-    
-    // Внутренняя отделка вагонка "С" (если выбрано)
-    if (document.getElementById('chkInteriorVagonka')?.checked) {
+      if (price) addExtra(price, "Внутренняя отделка ОСП-9", true);
+    } else if (interiorFinish === 'vagonka') {
       const price = ECONOMY_EXTRAS.interiorFinish.vagonka[sizeKey];
-      if (price) addExtra(price, "Внутренняя отделка вагонка 'С'");
+      if (price) addExtra(price, "Внутренняя отделка вагонка 'С'", true);
     }
     
     // Утепление 100 мм (только для бытовок эконом)
     if (type === 'bytovka_economy' && document.getElementById('chkInsulation100')?.checked) {
       const price = ECONOMY_EXTRAS.insulation100[sizeKey];
-      if (price) addExtra(price, "Утепление 100 мм (стены/пол/потолок)");
+      if (price) addExtra(price, "Утепление 100 мм (стены/пол/потолок)", true);
     }
     
     // Огнебиозащита пола (если выбрано)
     if (document.getElementById('chkFireProtectionFloor')?.checked) {
       const price = ECONOMY_EXTRAS.fireProtection.floor[sizeKey];
-      if (price) addExtra(price, "Огнебиозащита пола");
+      if (price) addExtra(price, "Огнебиозащита пола", true);
     }
     
     // Огнебиозащита каркаса (если выбрано)
     if (document.getElementById('chkFireProtectionFrame')?.checked) {
       const price = ECONOMY_EXTRAS.fireProtection.frame[sizeKey];
-      if (price) addExtra(price, "Огнебиозащита каркаса");
+      if (price) addExtra(price, "Огнебиозащита каркаса", true);
     }
     
     // Паро- и ветроизоляция (только для бытовок эконом)
     if (type === 'bytovka_economy' && document.getElementById('chkVaporBarrier')?.checked) {
       const price = ECONOMY_EXTRAS.vaporBarrier[sizeKey];
-      if (price) addExtra(price, "Паро- и ветроизоляция");
+      if (price) addExtra(price, "Паро- и ветроизоляция", true);
     }
     
     // Перегородки (если выбраны)
@@ -2275,8 +2341,11 @@ function addExtra(sum, label, skipMarkup = false){
           const price = partitionPrices[size] || 0;
           if (price > 0) {
             const optionText = row.querySelector('.partition-size').selectedOptions[0].text;
+            const materialText = row.querySelector('.partition-material').selectedOptions[0].text;
             const total = price * qty;
-            addExtra(total, `${optionText} (${qty} шт)`);
+            // Убираем цену из optionText для КП
+            const cleanOptionText = optionText.replace(/ — \d+[\s,]*\d*₽/, '');
+            addExtra(total, `Перегородка ${materialText.toLowerCase()} ${cleanOptionText} (${qty} шт)`, true);
           }
         }
       });
@@ -2300,7 +2369,7 @@ function addExtra(sum, label, skipMarkup = false){
         case "pvcWin": {                        // окно ПВХ
           price   = ECONOMY_WINDOWS[code][cam];
           caption = `Окно ПВХ ${code}`;
-          if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+          if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
           pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ в «Комплектацию»
           break;
         }
@@ -2316,7 +2385,7 @@ function addExtra(sum, label, skipMarkup = false){
           pkg.push(`– ${caption} (${qty} шт)`);
         }
 
-        if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+        if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
         break;
       }
 
@@ -2324,7 +2393,7 @@ function addExtra(sum, label, skipMarkup = false){
         case "pvcDoor": {                       // дверь ПВХ
           price   = ECONOMY_WINDOWS[code][2] || ECONOMY_WINDOWS[code][1];
           caption = `Дверь ПВХ ${code}`;
-          if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+          if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
           pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
           break;
         }
@@ -2344,14 +2413,14 @@ function addExtra(sum, label, skipMarkup = false){
           pkg.push(`– ${caption} (${qty} шт)`);
         }
 
-        if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+        if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
         break;
       }
 
         case "metalDoor": {                     // дверь металлическая
           price   = ECONOMY_METAL_PRICES[code];
           caption = "Дверь металлическая РФ";
-          if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+          if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
           pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
           break;
         }
@@ -2361,13 +2430,13 @@ function addExtra(sum, label, skipMarkup = false){
     
     // Прочее
     if (document.getElementById('chkSteps')?.checked) {
-      addExtra(ECONOMY_EXTRAS.misc.steps, "Ступени");
+      addExtra(ECONOMY_EXTRAS.misc.steps, "Ступени", true);
     }
     if (document.getElementById('chkRamp75')?.checked) {
-      addExtra(ECONOMY_EXTRAS.misc.ramp_75, "Пандус 75 см");
+      addExtra(ECONOMY_EXTRAS.misc.ramp_75, "Пандус 75 см", true);
     }
     if (document.getElementById('chkRamp160')?.checked) {
-      addExtra(ECONOMY_EXTRAS.misc.ramp_160_180, "Пандус 160-180 см");
+      addExtra(ECONOMY_EXTRAS.misc.ramp_160_180, "Пандус 160-180 см", true);
     }
     
     // Сваи для эконом-линейки (если выбрано)
@@ -2451,7 +2520,9 @@ if (floorExtra) addExtra(floorExtra, FLOOR_CAPT[floorCode]);
 const extraH = +inpExtraH.value || 0;        // введено в см
 if (extraH > 0) {
   const steps = Math.ceil(extraH / 10);
-  const addH  = steps * pricePer10cm(warmArea);
+  // Учитываем ОБЩУЮ площадь строения (включая веранду)
+  const totalArea = w * l; // общая площадь без вычета веранды
+  const addH  = steps * pricePer10cm(totalArea);
   addExtra(addH, `Высота +${extraH} см`);
     heightNote = `– Высота увеличена на ${extraH} см`;
   }
@@ -2478,14 +2549,63 @@ if (extraH > 0) {
     }
   }
 
-  /* --- 8. Сваи --- */
+  /* --- 8. Сваи (НОВАЯ ЛОГИКА) --- */
   if (!isEconomy) {
     const selSvaiType = document.getElementById('selSvaiType');
     if (selSvaiType && selSvaiType.value) {
       const dim = selSvaiType.value;
-    const cnt  = getPileCount(type, w, l);
-      const price = PILES_STANDARD[dim] * cnt;
-    addExtra(price, `Свайный фундамент ${dim} × ${cnt} шт`);
+      
+      // Рассчитываем количество свай по новой логике (с учетом веранды)
+      let verandaWidthForPiles = 0;
+      if (type === 'house' && verWidth && verWidth.value && !isInsideVer) {
+        verandaWidthForPiles = parseFloat(verWidth.value) || 0;
+      } else if ((type === 'hoblok' || type === 'bytovka') && selVeranda && selVeranda.value) {
+        // Для хозблоков/бытовок с верандой из прайса - веранда уже учтена в размерах
+        verandaWidthForPiles = 0;
+      }
+      
+      const cnt = calculatePilesByRows(w, l, verandaWidthForPiles, isInsideVer);
+      
+      // Базовая цена за сваю (БЕЗ наценки)
+      const pricePerPile = PILES_STANDARD[dim];
+      
+      // Определяем, нужна ли отдельная бригада
+      let needsSeparateTeam = false;
+      let separateTeamReason = "";
+      
+      if (dim === "1.5×76") {
+        if (cnt >= 17) {
+          needsSeparateTeam = true;
+          separateTeamReason = "76/1500 от 17 шт - отдельная бригада";
+        }
+      } else if (dim === "2.0×76") {
+        if (cnt >= 10) {
+          needsSeparateTeam = true;
+          separateTeamReason = "76/2000 от 10 шт - отдельная бригада";
+        }
+      } else {
+        // Все остальные типы (89, 108) - всегда отдельная бригада
+        needsSeparateTeam = true;
+        separateTeamReason = "Сваи 89/108 - отдельная бригада";
+      }
+      
+      // Рассчитываем цену
+      let totalPrice;
+      if (dim === "1.5×76" && cnt >= 16) {
+        totalPrice = grossInt(3350 * cnt); // 3350₽/шт для 16+ штук + 10%
+      } else {
+        totalPrice = grossInt(pricePerPile * cnt); // обычная цена + 10%
+      }
+      
+      // Добавляем в допы (без уведомления для клиента)
+      addExtra(totalPrice, `Свайный фундамент ${dim} × ${cnt} шт`, true);
+      
+      // Показываем всплывающее окно для менеджера при отдельной бригаде
+      if (needsSeparateTeam) {
+        setTimeout(() => {
+          alert(`⚠️ ВНИМАНИЕ ДЛЯ МЕНЕДЖЕРА!\n\nСваи ${dim} × ${cnt} шт требуют отдельной бригады.\n\nНе забудьте:\n• Оформить отдельный заказ на сваи\n• Рассчитать доставку: 60₽/км от Мытищ\n• Уведомить клиента о дополнительных расходах`);
+        }, 100);
+      }
     }
   }
 
@@ -2641,17 +2761,40 @@ if (type === "hoblok") {
       vag_imitBC:"imitB", vag_imitA:"imitA", vag_block:"block"
     };
     const intTgt  = codeMapIn[selInRep.value];
-    const priceIn = (REPLACEMENT_PRICES[intBase] || {})[intTgt] || 0;
+    
+    // Специальная логика для домов с ломаной крышей
+    if (type === "house" && roof === "lom") {
+      if (selInRep.value === 'osb_vag') {
+        // Вагонка B-C класса: базовая цена 11,000₽/м² (уже учтено выше)
+        // НЕ добавляем доплату, только меняем finalInt для отображения в КП
+        finalInt = "vagBC";
+      } else {
+        // Для вагонки A класса и других материалов добавляем доплату как обычно
+        const priceIn = (REPLACEMENT_PRICES[intBase] || {})[intTgt] || 0;
+        const intH       = getWallHeight(type, roof, false);
+        const wallSquare = wallArea(w, l, intH);
+        const ceilSquare = w * l;
+        let areaInTot    = wallSquare + ceilSquare;
+        if (IMIT.has(intTgt)) areaInTot = round3(areaInTot);
 
-    const intH       = getWallHeight(type, roof, false);
-    const wallSquare = wallArea(w, l, intH);
-    const ceilSquare = w * l;
-    let areaInTot    = wallSquare + ceilSquare;
-    if (IMIT.has(intTgt)) areaInTot = round3(areaInTot);
+        addExtra(priceIn * areaInTot,
+                 `${MATERIAL_NAME[intBase]} → ${MATERIAL_NAME[intTgt]}`);
+        finalInt = intTgt;
+      }
+    } else {
+      // Обычная логика для других случаев
+      const priceIn = (REPLACEMENT_PRICES[intBase] || {})[intTgt] || 0;
 
-    addExtra(priceIn * areaInTot,
-             `${MATERIAL_NAME[intBase]} → ${MATERIAL_NAME[intTgt]}`);
-    finalInt = intTgt;
+      const intH       = getWallHeight(type, roof, false);
+      const wallSquare = wallArea(w, l, intH);
+      const ceilSquare = w * l;
+      let areaInTot    = wallSquare + ceilSquare;
+      if (IMIT.has(intTgt)) areaInTot = round3(areaInTot);
+
+      addExtra(priceIn * areaInTot,
+               `${MATERIAL_NAME[intBase]} → ${MATERIAL_NAME[intTgt]}`);
+      finalInt = intTgt;
+    }
   } else {
     finalInt = (type === "house")
       ? (document.querySelector('input[name="roof"]:checked').value === "lom"
@@ -2757,21 +2900,20 @@ if (heightNote) pkg.push(heightNote);
     pkg.push("– Внешняя отделка: вагонка категории С (небольшие дырки от сучков закрываем пеной)");
     
     // 7) Внутренняя отделка (базовая по прайсу или замененная опцией)
-    const hasInteriorOSB = document.getElementById('chkInteriorOSB')?.checked;
-    const hasInteriorVagonka = document.getElementById('chkInteriorVagonka')?.checked;
+    const interiorFinish = document.querySelector('input[name="interiorFinish"]:checked')?.value;
     
     if (type === 'hoblok_economy') {
-      if (hasInteriorOSB) {
+      if (interiorFinish === 'osb') {
         pkg.push("– Внутренняя отделка: ОСП-9");
-      } else if (hasInteriorVagonka) {
+      } else if (interiorFinish === 'vagonka') {
         pkg.push("– Внутренняя отделка: вагонка 'С'");
       } else {
         pkg.push("– Внутренняя отделка: нет");
       }
     } else {
-      if (hasInteriorOSB) {
+      if (interiorFinish === 'osb') {
         pkg.push("– Внутренняя отделка: ОСП-9");
-      } else if (hasInteriorVagonka) {
+      } else if (interiorFinish === 'vagonka') {
         pkg.push("– Внутренняя отделка: вагонка 'С'");
       } else {
         pkg.push("– Внутренняя отделка: оргалит (ДВП) 0,35 мм");
@@ -2931,8 +3073,10 @@ if (heightNote) pkg.push(heightNote);
           const price = partitionPrices[size] || 0;
           if (price > 0) {
             const optionText = row.querySelector('.partition-size').selectedOptions[0].text;
-            const total = price * qty;
-            pkg.push(`– ${optionText} (${qty} шт): ${formatPrice(total)} ₽`);
+            const materialText = row.querySelector('.partition-material').selectedOptions[0].text;
+            // Убираем цену из optionText для комплектации
+            const cleanOptionText = optionText.replace(/ — \d+[\s,]*\d*₽/, '');
+            pkg.push(`– Перегородка ${materialText.toLowerCase()} ${cleanOptionText} (${qty} шт)`);
           }
         }
       });
@@ -3010,8 +3154,32 @@ if (!isEconomy) {
 if (!isEconomy) {
   const selSvaiType = document.getElementById('selSvaiType');
   if (selSvaiType && selSvaiType.value) {
-  const pileCnt = getPileCount(type, w, l);          // ← корректное число свай
+    // Рассчитываем количество свай по новой логике (с учетом веранды)
+    let verandaWidthForPiles = 0;
+    if (type === 'house' && verWidth && verWidth.value && !isInsideVer) {
+      verandaWidthForPiles = parseFloat(verWidth.value) || 0;
+    }
+    const pileCnt = calculatePilesByRows(w, l, verandaWidthForPiles, isInsideVer);
+    
+    // Определяем, нужна ли отдельная бригада для комплектации
+    let needsSeparateTeamForKit = false;
+    if (selSvaiType.value === "1.5×76" && pileCnt >= 17) {
+      needsSeparateTeamForKit = true;
+    } else if (selSvaiType.value === "2.0×76" && pileCnt >= 10) {
+      needsSeparateTeamForKit = true;
+    } else if (selSvaiType.value.includes("×89") || selSvaiType.value.includes("×108")) {
+      needsSeparateTeamForKit = true;
+    }
+    
     pkg.push(`– Свайный фундамент: ${selSvaiType.value} × ${pileCnt} шт`);
+    
+    if (needsSeparateTeamForKit) {
+      pkg.push(`  ⚠️ ВНИМАНИЕ: Монтаж свай выполняется отдельной бригадой`);
+      pkg.push(`  Доставка: 60₽/км от Мытищ (рассчитывается отдельно)`);
+      pkg.push(`  В стоимость входит: установка, оголовок 150×150, обварка, подсыпка пескобетоном`);
+    } else {
+      pkg.push(`  В стоимость входит: установка, оголовок 150×150, обварка, подсыпка пескобетоном`);
+    }
   }
 } else {
   // Для эконом-линейки используем отдельный селект
@@ -3095,8 +3263,9 @@ if (hasRoute) {
       deliveryText = `Доставка комплектами: ${formatPrice(del)} ₽`;
     }
     
-    if (assembly) {
-      deliveryText += `\n– Сборка на участке: ${formatPrice(CONFIG[type].delivery.assembly)} ₽`;
+    if (assembly && deliveryType !== 'kit') {
+      // Для газели сборка уже включена в базовую цену
+      deliveryText += `\n– Сборка на участке: ${formatPrice(Math.round(CONFIG[type].delivery.assembly * 1.1))} ₽`;
     }
     
     lines.push(`– ${deliveryText}  `);
@@ -3341,9 +3510,9 @@ function updateVerandaOptions() {
       matches.forEach(match => {
         const option = document.createElement('option');
         option.value = match.key;
-        const priceWithMarkup = Math.round(match.price * 1.1 / 50) * 50; // +10% наценка
+        const priceRounded = Math.round(match.price / 50) * 50; // только округление (цена уже с наценкой 10%)
         // Короткий текст для компактности
-        option.textContent = `${match.main} + ${match.veranda} — ${formatPrice(priceWithMarkup)} ₽`;
+        option.textContent = `${match.main} + ${match.veranda} — ${formatPrice(priceRounded)} ₽`;
         verandaSelect.appendChild(option);
       });
     } else {

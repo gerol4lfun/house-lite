@@ -397,14 +397,18 @@
           
           <!-- Внутренняя отделка -->
           <h3>Внутренняя отделка</h3>
-          <div class="checkbox-group">
+          <div class="radio-group">
             <label class="interior-option">
-              <input type="checkbox" id="chkInteriorOSB" /> 
+              <input type="radio" name="interiorFinish" value="none" checked /> 
+              Без изменений (базовая отделка)
+            </label>
+            <label class="interior-option">
+              <input type="radio" name="interiorFinish" value="osb" id="chkInteriorOSB" /> 
               Внутренняя отделка ОСП-9
               <span class="hint">💡 Заменяет базовую отделку оргалитом</span>
             </label>
             <label class="interior-option">
-              <input type="checkbox" id="chkInteriorVagonka" /> 
+              <input type="radio" name="interiorFinish" value="vagonka" id="chkInteriorVagonka" /> 
               Внутренняя отделка вагонка "С"
               <span class="hint">💡 Заменяет базовую отделку оргалитом</span>
             </label>
@@ -451,7 +455,6 @@
 
               <select class="win-cam">
                 <option value="1">1-кам.</option>
-                <option value="2">2-кам.</option>
               </select>
               <select class="win-size">
                 <option value="">— размер —</option>
