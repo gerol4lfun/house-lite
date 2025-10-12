@@ -91,7 +91,8 @@ function getWallHeight(type, roof, ext = false) {
         ? (ext ? 2.4 : 2.3)   // наружные стены 2 ,4 м, внутренние 2 ,3 м
         : 2.4;                // двускатная – 2 ,4 м везде
   } else {
-    h = 2.1;                  // бытовка / хозблок
+    // бытовка / хозблок: для двускатной крыши 2.4 м, для остальных 2.1 м
+    h = (roof === "gable") ? 2.4 : 2.1;
   }
 
   return +(h + addM).toFixed(2);  // итоговое число, например 2.30
@@ -496,10 +497,23 @@ document.addEventListener('click', e => {
 
 
   // слушаем события
-  selType.addEventListener("change", handleTypeChange);
-  document.querySelectorAll('input[name="roof"]').forEach(r=>r.addEventListener("change", handleTypeChange));
+  selType.addEventListener("change", function() {
+    handleTypeChange();
+    calculate(); // Обновляем КП при изменении типа строения
+  });
+  document.querySelectorAll('input[name="roof"]').forEach(r => {
+    r.addEventListener("change", function() {
+      handleTypeChange();
+      calculate(); // Обновляем КП при изменении типа крыши
+    });
+  });
   btnAddWindow.addEventListener("click", addWindowRow);
-  [inpWidth, inpLength].forEach(el => el.addEventListener("change", populatePileOptions));
+  [inpWidth, inpLength].forEach(el => {
+    el.addEventListener("change", () => {
+      populatePileOptions();
+      calculate(); // Обновляем КП при изменении размеров
+    });
+  });
   btnCalc.addEventListener("click", calculate);
   btnReset.addEventListener("click", resetFilters);
 btnClearAddr.addEventListener("click", clearDelivery);
@@ -1385,7 +1399,7 @@ if (type === "house") {
     : "2,4 м по всему периметру";
   heightLine = extraHcm ? `${base} + ${addM} м` : base;
 } else { // бытовка / хозблок
-  const base = "2,10 м";
+  const base = roofType === "gable" ? "2,4 м" : "2,10 м";
   heightLine = extraHcm ? `${base} + ${addM} м` : base;
 }
 pkg.push(`– Высота ${type==="house"?"помещения":"потолка"}: ${heightLine}`);
@@ -1451,13 +1465,24 @@ const DD   = String(ex.getDate()).padStart(2, "0");
 const MM   = String(ex.getMonth() + 1).padStart(2, "0");
 const YYYY = ex.getFullYear();
 
+// Проверяем, выбраны ли сваи - если да, то убираем блоки фундамента
+const selSvaiType = document.getElementById('selSvaiType');
+const gifts = [];
+
+if (!selSvaiType || !selSvaiType.value) {
+  gifts.push(`– Фундамент из блоков 40×20×20  `);
+}
+
+gifts.push(
+  `– Сборка за 1 день  `,
+  `– Обработка полозьев антисептиком - защита от гниения  `,
+  `– Ступеньки на вход  `
+);
+
 lines.push(
   ``,
   `🎁 *Подарки:*`,
-  `– Фундамент из блоков 40×20×20  `,
-  `– Сборка за 1 день  `,
-  `– Обработка полозьев антисептиком - защита от гниения  `,
-  `– Ступеньки на вход  `,
+  ...gifts,
   ``,
   `🕒 *Срок изготовления:* 1–2 дня  `,
   `💳 *Без предоплаты — оплата по факту*`,
