@@ -6387,31 +6387,14 @@ async function generatePDF() {
         fileName = `КП_${match[1]}_${dateStr.replace(/\./g, '_')}`;
       }
     }
-    // Создаем blob URL для просмотра в браузере
-    const pdfBlob = pdf.output('blob');
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-    
-    // Открываем PDF в новой вкладке для просмотра (без скачивания)
-    const previewWindow = window.open(pdfUrl, '_blank');
-    if (previewWindow) {
-      previewWindow.focus();
-    } else {
-      console.error('Не удалось открыть PDF в новой вкладке (возможно, заблокирован popup)');
-      alert('⚠️ Не удалось открыть PDF. Проверьте, не заблокированы ли всплывающие окна в браузере.');
-    }
-    // Скачивание отключено - только просмотр в браузере
-    // pdf.save(fileName + '.pdf');
+    // Скачиваем PDF файл
+    pdf.save(fileName + '.pdf');
     
     // Восстанавливаем кнопку
     if (btnPDF) {
       btnPDF.disabled = false;
       btnPDF.textContent = originalText;
     }
-    
-    // Очищаем blob URL через 5 минут (чтобы не засорять память)
-    setTimeout(() => {
-      URL.revokeObjectURL(pdfUrl);
-    }, 300000);
     
     // Сбрасываем флаг генерации
     window.__pdfGenerating = false;
