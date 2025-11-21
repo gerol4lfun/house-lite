@@ -256,13 +256,86 @@ button {
 }
 
 .btn-success {
-  background: #27ae60;
+  background: linear-gradient(135deg, #27ae60, #229954);
   color: white;
   padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
 }
 
 .btn-success:hover {
-  background: #229954;
+  background: linear-gradient(135deg, #229954, #1e8449);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+}
+
+.btn-success.active {
+  background: linear-gradient(135deg, #1e8449, #196f3d);
+  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(243, 156, 18, 0.3);
+}
+
+.btn-warning:hover {
+  background: linear-gradient(135deg, #e67e22, #d35400);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(243, 156, 18, 0.4);
+}
+
+/* Переключатель формата КП (WhatsApp/Авито) */
+.kp-format-switcher {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.format-btn {
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.format-btn:hover {
+  background: #e9ecef;
+  border-color: #dee2e6;
+}
+
+.format-btn.active {
+  background: #3498db;
+  border-color: #2980b9;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.format-btn img {
+  display: block;
+}
+
+.btn-warning:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* Dimensions Container - 2 строки */
@@ -568,7 +641,7 @@ fieldset legend {
 /* ─── ВЫВОД КП ───────────────────────────────────────────────────── */
 #out {
   min-height: 250px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  background-image: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); /* декоративный фон по умолчанию */
   border: 2px solid #e9ecef;
   border-radius: 8px;
   padding: 16px;
@@ -581,6 +654,25 @@ fieldset legend {
   position: relative;
   flex: 1;
   margin-bottom: 16px;
+  cursor: text;
+}
+
+/* Подсветка фона текста для Авито (до 950 — зелёный, после — красный) */
+/* Span'ы инлайн, переносы строк через <br> */
+#out .avito-ok {
+  background-color: rgba(16, 185, 129, 0.08); /* лёгкий зелёный фон */
+  padding: 0;
+  margin: 0;
+}
+#out .avito-over {
+  background-color: rgba(239, 68, 68, 0.12); /* лёгкий красный фон */
+  padding: 0;
+  margin: 0;
+}
+
+#out:focus {
+  border-color: #3498db;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.05), 0 0 0 3px rgba(52, 152, 219, 0.1);
 }
 
 #out::before {
@@ -823,4 +915,1323 @@ select:disabled option {
   #map {
     height: 250px;
   }
+}
+
+/* ─── СТИЛИ ДЛЯ PDF КП ─────────────────────────────────────────────── */
+/* Логотип на обложке */
+.kp-logo-wrapper {
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.kp-logo-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+/* Сбрасываем межбуквенный интервал внутри обложки */
+.kp-cover,
+.kp-cover * {
+  letter-spacing: normal;
+}
+
+/* Вся обложка */
+.kp-cover {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  color: #f9fafb;
+  font-family: "Inter", sans-serif;
+  position: relative;
+  min-height: calc(297mm - 120px); /* Высота страницы минус padding сверху и снизу (60px * 2) */
+}
+
+/* Обертка контента обложки */
+.kp-cover {
+  position: static; /* не перехватываем позиционирование футера */
+}
+
+/* Шапка обложки */
+.kp-cover-header {
+  margin-top: 0;
+  margin-left: 0;
+  margin-bottom: 0; /* Будет управляться через margin-top заголовка */
+}
+
+.kp-logo-block {
+  display: flex;
+  align-items: center;
+  gap: 10mm;
+}
+
+.kp-logo {
+  width: 22mm;
+  height: 22mm;
+}
+
+.kp-logo-wrapper {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.kp-logo-img {
+  width: 22mm;
+  height: 22mm;
+  object-fit: contain;
+}
+
+.kp-cover-company,
+.kp-logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.kp-company,
+.kp-cover-company-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0 !important;
+  color: #f9fafb;
+}
+
+.kp-company-sub,
+.kp-cover-company-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #e5e7eb;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  line-height: 1.5;
+  /* Правильное выравнивание для inline элементов */
+  display: block;
+  text-align: left;
+}
+
+/* Выравнивание символов разделителей по центру */
+.kp-company-sub,
+.kp-cover-company-subtitle,
+.kp-footer,
+.kp-footer-company {
+  /* Используем правильный line-height для выравнивания символов */
+  line-height: 1.5;
+  /* Убеждаемся, что все символы выровнены правильно */
+  font-variant-numeric: normal;
+  font-feature-settings: normal;
+}
+
+/* Глобальная нормализация для всех текстовых элементов КП */
+.kp-cover *,
+.kp-page-inner *,
+.kp-content * {
+  /* Убираем проблемы с выравниванием символов */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Единообразное выравнивание для всех inline элементов */
+  vertical-align: baseline;
+}
+
+/* Специальная обработка для всех разделителей в тексте */
+.kp-cover *::before,
+.kp-cover *::after,
+.kp-page-inner *::before,
+.kp-page-inner *::after,
+.kp-content *::before,
+.kp-content *::after {
+  vertical-align: middle;
+}
+
+/* Нормализация для всех span элементов с разделителями */
+.kp-cover span,
+.kp-page-inner span,
+.kp-content span {
+  vertical-align: baseline;
+}
+
+/* Исправление выравнивания для символов разделителей */
+.kp-cover span[style*="vertical-align"],
+.kp-page-inner span[style*="vertical-align"],
+.kp-content span[style*="vertical-align"] {
+  vertical-align: middle !important;
+  line-height: 1 !important;
+}
+
+/* Основной контент обложки */
+.kp-cover-main {
+  text-align: center;
+  flex: 1;
+  min-height: 0; /* Позволяет футеру быть видимым */
+}
+
+.kp-commercial-offer {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fbbf24;
+  text-align: center;
+  margin: 16px 0 8px 0;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.kp-title,
+.kp-cover-title-main {
+  margin-top: 140px; /* Опускаем заголовок еще ниже */
+  margin-bottom: 16px;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.45; /* по ТЗ: line-height 1.45 для титульных текстов */
+  text-transform: none;
+  letter-spacing: 0;
+  word-spacing: normal; /* нормальный межсловный интервал */
+  color: #FFC44B; /* желтый цвет как в логотипе */
+  text-align: center;
+  font-family: "Inter", sans-serif !important;
+}
+
+/* "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ" */
+.kp-subtitle,
+.kp-cover-subtitle {
+  margin-top: 0;
+  margin-bottom: 48px;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  line-height: 1.45; /* по ТЗ: line-height 1.45 */
+  color: #e5e7eb;
+  text-align: center;
+  font-family: "Inter", sans-serif !important;
+}
+
+/* УТП в горизонтальном расположении - 3 пункта с желтыми галочками */
+.kp-benefits,
+.kp-cover-benefits {
+  margin-top: 108px; /* 48px + 60px = 108px (опустить на 60px вниз) */
+  display: flex;
+  justify-content: center;
+  font-family: "Inter", sans-serif !important;
+}
+
+/* УТП в 2 колонки по 2 пункта */
+.kp-benefits-grid {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 65px; /* увеличили расстояние между колонками (было 50px, стало 65px) */
+  width: 100%;
+  max-width: 85%; /* ограничиваем ширину, чтобы не было близко к краям */
+  margin: 0 auto;
+  padding: 0 40px; /* отступы от краев */
+}
+
+.kp-benefits-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px; /* небольшой отступ между строками в колонке */
+  min-width: 200px; /* минимальная ширина для выравнивания */
+}
+
+.kp-benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* расстояние между галочкой и текстом */
+  flex-shrink: 0; /* не сжимаем элементы */
+  margin-bottom: 0; /* убираем отступы снизу */
+  width: 100%; /* чтобы галочки были выровнены */
+}
+
+.kp-benefit-checkmark {
+  color: #FFC44B; /* желтый цвет как в логотипе */
+  font-size: 24px; /* размер галочки */
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 24px; /* фиксированная ширина для выравнивания галочек */
+  text-align: center; /* центрируем галочку */
+  display: inline-block;
+}
+
+.kp-benefit-text {
+  font-size: 20px; /* размер текста для акцента */
+  font-weight: 700; /* жирный для акцента */
+  line-height: 1.45;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  text-transform: uppercase; /* большие буквы */
+  color: #f9fafb;
+  white-space: nowrap;
+  flex: 1; /* текст занимает оставшееся пространство */
+}
+
+.kp-benefits-col {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kp-benefits-col li,
+.kp-benefits-col p {
+  margin: 4px 0;
+}
+
+/* Контур домика на титульной странице - базовый класс */
+.cover-house {
+  width: 100%;
+  height: 520px;              /* чуть выше, чтобы влезли все варианты */
+  margin-top: 32px;
+  background-repeat: no-repeat;
+  background-position: center 82%; /* немного опускаем картинку вниз */
+  background-size: 80%;            /* базовый масштаб */
+  max-width: 100%;
+  opacity: 0.5;
+  pointer-events: none;
+  position: relative;
+  z-index: 0;
+  filter: brightness(0) saturate(100%) invert(90%) sepia(100%)
+          saturate(3000%) hue-rotate(0deg) brightness(1.3) contrast(1.3);
+}
+
+/* Дом с низким скатом крыши – делаем чуть шире и чуть ниже */
+.cover-house--nskat {
+  background-position: center 84%;
+  background-size: 82%;
+}
+
+/* Бытовка / хозблок – ещё ниже и чуть крупнее,
+   чтобы низ домика совпал по высоте с другими */
+.cover-house--bytovka {
+  background-position: center 92%;
+  background-size: 88%;
+}
+
+/* Бытовка / хозблок с двускатной крышей */
+.cover-house--dbytovka {
+  background-position: center 92%;
+  background-size: 88%;
+}
+
+
+.kp-cover-benefit {
+  white-space: nowrap;
+  letter-spacing: 0 !important;
+  margin-bottom: 2mm;
+}
+
+/* Футер обложки */
+.kp-cover-footer {
+  border-top: 1px solid rgba(249,250,251,0.15);
+  padding-top: 12px; /* расстояние от линии до текста */
+  margin: 0; /* управляет абсолютное позиционирование */
+  position: absolute; /* фиксируем футер у низа страницы */
+  left: 40px; /* выравнивание по полям страницы */
+  right: 40px;
+  bottom: 16px; /* единая высота подвала как на эталонном варианте */
+  flex-shrink: 0;
+  display: block;
+  width: auto;
+}
+
+.kp-manager {
+  margin-top: 0; /* Убираем margin-top, так как padding-top уже есть у родителя */
+  margin-bottom: 0; /* Убираем margin-bottom */
+  font-size: 13px;
+  color: #e5e7eb;
+  text-align: center;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  display: block; /* Явно показываем текст */
+  visibility: visible; /* Видимый */
+}
+
+/* Блок "Почему мы" - в одну колонку */
+.kp-why-we {
+  display: block;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-top: 0;
+  letter-spacing: 0 !important;
+  color: #111827;
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+.kp-gifts,
+.kp-cost-box,
+.kp-why-we,
+.kp-footer-company {
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+.kp-why-we h3 {
+  margin-bottom: 16px;
+}
+
+.kp-why-we-column {
+  list-style: none;
+  padding: 0 0 0 14px;
+  margin: 0;
+}
+
+.kp-why-we-column li {
+  margin-bottom: 3px;
+}
+
+.kp-why-we-column li::before {
+  content: "– ";
+}
+
+/* Общая настройка для текста КП - по ТЗ: шрифт Inter или SF Pro Display, line-height 1.6 */
+.kp-content,
+.kp-page-inner {
+  font-family: "Inter", sans-serif;
+  font-size: 16px; /* по ТЗ: размер текста 15-16px */
+  line-height: 1.6; /* по ТЗ: line-height 1.6 для основного текста */
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  hyphens: none;
+  word-break: keep-all;
+  /* Принудительная нормализация пробелов */
+  white-space: normal !important;
+  font-feature-settings: normal !important;
+  font-variant-ligatures: none !important;
+}
+
+/* Сетка для списков */
+.kp-content ul,
+.kp-page-main ul,
+.kp-page-conditions ul {
+  padding-left: 18px;
+  margin: 0 0 10px;
+  letter-spacing: 0 !important;
+}
+
+.kp-content li,
+.kp-page-main li,
+.kp-page-conditions li {
+  margin-bottom: 3px;  /* было 6px – делаем компактнее */
+  letter-spacing: 0 !important;
+}
+
+/* Запрет переноса предлогов в конце строки (правила русского языка) */
+.kp-content,
+.kp-page-main,
+.kp-page-conditions {
+  /* Предлоги не должны оставаться в конце строки */
+  word-spacing: normal;
+}
+
+.kp-content *,
+.kp-page-main *,
+.kp-page-conditions * {
+  /* Запрещаем перенос предлогов: в, на, с, по, от, для, из, к, о, у, за, над, под, при, про, без, через */
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* Специальная обработка для предлогов - добавляем неразрывные пробелы через JS */
+
+/* Общий фон документа и базовые стили */
+html, body {
+  background-color: #E5E7EB;
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #111827; /* почти чёрный, а не серый-мутный */
+}
+
+/* Убираем глобальные letter-spacing и нормализуем word-spacing */
+body, p, li, span {
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  white-space: normal !important; /* нормализуем пробелы */
+}
+
+/* Нормализация пробелов для всего КП */
+.kp-cover *,
+.kp-page-inner *,
+.kp-content * {
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  white-space: normal !important; /* нормализуем пробелы - убираем pre-wrap, pre и т.д. */
+  /* Принудительная нормализация пробелов */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Убираем проблемы с рендерингом пробелов */
+  font-feature-settings: normal;
+  font-variant-ligatures: none;
+  /* Принудительно убираем множественные пробелы через CSS */
+  white-space-collapse: collapse;
+}
+
+/* Дополнительная нормализация для всех текстовых элементов */
+.kp-page-inner div,
+.kp-content div,
+.kp-list li {
+  white-space: normal !important;
+  /* Убираем все множественные пробелы */
+  text-space-collapse: collapse;
+}
+
+/* Страница А4 - по ТЗ: поля 32px сверху/снизу, 40px слева/справа */
+.kp-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 32px 40px; /* 32px сверху/снизу, 40px слева/справа */
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* Обложка - темный фон #171E26 */
+.kp-page--cover {
+  background-color: #171E26;
+  color: #f9fafb;
+  padding: 32px 40px 0 40px; /* нижний padding нам не нужен при абсолютном футере */
+  position: relative; /* чтобы абсолютный футер позиционировался от страницы */
+}
+
+.kp-page--cover .kp-page-inner {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0; /* Убираем padding, так как он уже на .kp-page--cover */
+  min-height: auto;
+}
+
+/* Белая карточка внутри (для контентных страниц) - по ТЗ: радиус 24px, padding 48px */
+.kp-page--inner .kp-page-inner {
+  background-color: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 18px 40px rgba(15,23,42,0.08);
+  padding: 48px; /* 48px со всех сторон */
+  box-sizing: border-box;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(297mm - 64px); /* высота страницы минус padding страницы (32px * 2) */
+  max-height: 710px; /* Максимальная высота контейнера по ТЗ */
+}
+
+.kp-page-inner {
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  padding: 16mm 18mm 20mm;
+  box-sizing: border-box;
+  min-height: calc(297mm - 44mm);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+/* Единый тёмный фон страницы (как на титульнике) для внутренних листов */
+.kp-page--inner { background-color: #111827; }
+
+/* Для страниц комплектации, если используются отдельные модификаторы */
+.kp-page--equipment { background-color: #111827; }
+
+/* Внутренние страницы - светлый фон #F7F8FA */
+.kp-page--inner {
+  background-color: #F7F8FA; /* по ТЗ: лёгкий сероватый белый */
+  color: #111827;
+  padding: 32px 40px; /* Поля страницы: 32px сверху/снизу, 40px слева/справа */
+}
+
+.kp-page--inner .kp-page-inner {
+  background-color: #FFFFFF;
+}
+
+/* Единый контейнер для всех страниц КП - по ТЗ: max-width 700px, по центру */
+.kp-container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.kp-page-conditions {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(297mm - 120px);
+  padding-top: 0; /* Убираем верхний отступ для поднятия блока вверх */
+}
+
+/* Поднять блок условий вверх на 140px */
+.kp-page-conditions .kp-page-inner {
+  margin-top: -140px; /* по ТЗ: поднять на 140px вверх */
+}
+
+/* Интервал между "Условия" → "Почему мы" = 28px */
+.kp-page-conditions .kp-section + .kp-section {
+  margin-top: 28px; /* по ТЗ: интервал между блоками 28px */
+}
+
+/* Line-height внутри пунктов последней страницы = 1.6 */
+.kp-page-conditions .kp-list li,
+.kp-page-conditions .kp-why-we-column li {
+  line-height: 1.6; /* по ТЗ: interline 1.6 */
+}
+
+.kp-page-conditions > .kp-footer-company,
+.kp-page-conditions > .kp-footer-manager {
+  margin-top: auto;
+}
+
+/* Блоки разделов - по ТЗ: отступы 30px сверху, 10px снизу */
+.kp-section {
+  margin-top: 30px; /* по ТЗ: отступы между разделами 30px сверху */
+  margin-bottom: 10px; /* по ТЗ: отступы между разделами 10px снизу */
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+.kp-section-title {
+  font-size: 18px; /* по ТЗ: заголовки 17-18px */
+  font-weight: 700; /* bold */
+  line-height: 1.4; /* по ТЗ: межстрочка 1.4 */
+  margin-top: 30px; /* по ТЗ: отступы между разделами 30px сверху */
+  margin-bottom: 10px; /* по ТЗ: отступы между разделами 10px снизу */
+  letter-spacing: 0;
+  color: #1c1f22;
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+/* Подзаголовки внутри разделов - по ТЗ: 18px medium */
+.kp-subsection-title {
+  font-size: 18px;
+  font-weight: 500; /* medium */
+  margin-top: 18px;
+  margin-bottom: 12px; /* по ТЗ: между заголовком и текстом 12px */
+  letter-spacing: 0 !important;
+  color: #1c1f22; /* по ТЗ: заголовки #1c1f22 */
+}
+
+.kp-list {
+  font-size: 16px; /* по ТЗ: размер текста 15-16px */
+  margin: 0;
+  padding-left: 0;
+  letter-spacing: 0 !important;
+  color: #222426;
+  line-height: 1.6; /* по ТЗ: line-height 1.6 для основного текста */
+}
+
+.kp-list li {
+  margin-bottom: 0;
+  line-height: 1.6; /* по ТЗ: line-height 1.6 */
+  list-style: none;
+}
+
+.kp-list li::before {
+  content: "– ";
+  margin-right: 0;
+}
+
+/* Карточка стоимости */
+.kp-price-card,
+.kp-cost-box {
+  background-color: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 18px 40px rgba(15,23,42,0.08);
+  padding: 48px;
+  margin-top: 30px; /* по ТЗ: отступы между разделами 30px сверху */
+  margin-bottom: 10px; /* по ТЗ: отступы между разделами 10px снизу */
+  font-size: 16px;
+  line-height: 1.6; /* по ТЗ: line-height 1.6 */
+  letter-spacing: 0 !important;
+  color: #222426;
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+.kp-cost-box > div {
+  margin-bottom: 8px; /* по ТЗ: между строками 8px */
+  text-align: left; /* по ТЗ: выравнивание по левому краю */
+}
+
+.kp-cost-box .kp-price-total {
+  margin-top: 8px;
+  font-weight: 700;
+  font-size: 17px; /* по ТЗ: увеличить шрифт на 1px (16+1=17) */
+}
+
+/* Блок подарков - по ТЗ: градиент #FF9A24 → #FFC44B, line-height 1.55, отступы 30px/30px/40px */
+.kp-gifts-card,
+.kp-gifts {
+  background: linear-gradient(90deg, #FF9A24, #FFC44B); /* по ТЗ: градиент #FF9A24 → #FFC44B */
+  border-radius: 24px;
+  box-shadow: 0 18px 40px rgba(15,23,42,0.08);
+  padding: 30px 40px; /* по ТЗ: 30px сверху, 30px снизу, 40px по бокам */
+  color: #ffffff;
+  font-size: 16px;
+  line-height: 1.55; /* по ТЗ: line-height 1.55 */
+  letter-spacing: 0 !important;
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+.kp-gifts > div {
+  margin-bottom: 0;
+  text-align: left; /* по ТЗ: выравнивание строго по сетке */
+}
+
+.kp-gifts-card h3,
+.kp-gifts > div:first-child {
+  font-size: 10pt;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Футер внутренних страниц - скрыт на последней странице по ТЗ */
+.kp-footer,
+.kp-footer-company {
+  margin-top: auto;
+  padding-top: 0;
+  border-top: none;
+  font-size: 14px;
+  color: #6a6f76;
+  text-align: center;
+  letter-spacing: 0;
+  line-height: 1.5;
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+  margin-bottom: 32px;
+}
+
+/* Футер на последней странице - показываем */
+.kp-page-conditions .kp-footer,
+.kp-page-conditions .kp-footer-company {
+  display: block; /* показываем футер на последней странице */
+  margin-top: 40px; /* отступ сверху */
+}
+
+/* Футер менеджера на внутренних страницах – УБРАТЬ, чтобы не дублировалось */
+.kp-footer-manager {
+  display: none;
+}
+
+/* === ФИНАЛЬНАЯ НАСТРОЙКА КП. ЛОГОТИП И ФОНЫ СТРАНИЦ === */
+
+/* ЛОГОТИП НА ОБЛОЖКЕ - по ТЗ: 72×72px, белая плашка радиус 12px, тень */
+.kp-logo-wrapper {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+.kp-logo-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  display: block;
+  padding: 8px; /* Отступ внутри белой плашки */
+}
+
+/* ФОНЫ СТРАНИЦ КП */
+
+/* Все внутренние страницы: очень лёгкий сероватый фон #F7F8FA */
+.kp-page--inner,
+.kp-page-main,
+.kp-page-conditions {
+  background-color: #F7F8FA !important;  /* по ТЗ: #F7F8FA */
+  color: #111827;
+}
+
+/* Белая карточка с содержимым внутри страницы */
+.kp-page-inner {
+  background-color: #FFFFFF !important;
+  border-radius: 12px;
+  padding: 18mm 18mm 16mm;
+  box-sizing: border-box;
+  min-height: calc(297mm - 44mm);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+/* Единый белый фрейм для страниц комплектации */
+.kp-page--equipment .kp-page-inner {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 28px 40px 32px; /* переносим паддинги на inner, чтобы фрейм был на каждом листе */
+}
+
+/* Футер компании - дубликат удален, используется единый стиль выше (.kp-footer, .kp-footer-company) */
+
+/* Карточка "Комплектация" */
+.equipment-card {
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 40px; /* единый padding */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.equipment-content {
+  max-width: 620px; /* ~60–65% ширины карты */
+  margin: 0 auto;   /* центрируем */
+  text-align: left;
+}
+
+.equipment-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+.kp-equipment-layout { margin-top: 4px; }
+
+/* Summary (правая колонка) */
+.kp-summary-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.kp-summary-list { margin: 0; padding: 0; }
+.kp-summary-list > div { margin-bottom: 6px; }
+.kp-summary-list dt {
+  font-size: 12px;
+  font-weight: 400;
+  color: #777;
+}
+.kp-summary-list dd { margin: 0; font-size: 13px; font-weight: 600; }
+
+/* Обновлённый отступ подзаголовка */
+/* Стиль перенесен ниже в общий блок .kp-spec-subtitle */
+
+.equipment-section {
+  margin-top: 24px; /* единые отступы между секциями */
+}
+
+.equipment-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px; /* от заголовка до первого пункта */
+  color: #1c1f22;
+}
+
+.equipment-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.equipment-list li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5; /* нормальный интерлиньяж */
+  color: #222426;
+}
+
+.equipment-list li::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #000; /* чёрный дефис */
+}
+
+/* КП: страница комплектации в виде карточки с резюме */
+.kp-equipment-page {
+  padding: 40px 40px 48px;
+}
+
+.kp-equipment-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr; /* слева список, справа резюме */
+  gap: 32px;
+}
+
+@media print and (max-width: 800px), screen and (max-width: 800px) {
+  .kp-equipment-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kp-equipment-main {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 32px 40px;
+}
+
+.kp-equipment-summary {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 24px 28px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.kp-equipment-summary h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.kp-equipment-summary ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kp-equipment-summary li + li {
+  margin-top: 6px;
+}
+
+.kp-equipment-summary li span { font-weight: 600; }
+
+.kp-equipment-group {
+  page-break-inside: avoid;
+  margin-bottom: 16px;
+}
+
+.kp-equipment-subtitle {
+  font-size: 13px;
+  color: #8a8a8a;
+  margin-top: 4px;
+  margin-bottom: 24px;
+}
+
+/* Маркеры списков комплектации — точки вместо тире */
+.equipment-list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #000;
+}
+
+/* Удаляем/не используем стили сетки и правой колонки */
+/* .kp-equipment-layout, .kp-equipment-left, .kp-summary, .kp-summary-title, .kp-summary-list { удалены } */
+
+/* Белая карточка комплектации и стоимости - единая верстка */
+.kp-spec-card {
+  padding: 28px 40px 32px; /* единые отступы как в блоке стоимости */
+  background: #fff;
+  border-radius: 24px;
+}
+
+/* Заголовок "Комплектация" */
+.kp-spec-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+/* Подзаголовок под ним */
+.kp-spec-subtitle {
+  font-size: 13px;
+  color: #8A8A8A;
+  margin: 0 0 18px;
+}
+
+/* Обёртка всех групп */
+.kp-spec-groups { }
+
+/* Одна логическая группа: Каркас, Отделка... */
+.kp-spec-group {
+  margin-bottom: 16px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* Заголовок группы */
+.kp-spec-group-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+/* Список внутри группы */
+.kp-spec-list {
+  margin: 0;
+  padding-left: 18px;
+  list-style-type: "– ";
+}
+
+/* Пункты списка комплектации */
+.kp-spec-list li {
+  margin: 0 0 2px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* Дополнительная защита от разрывов в печати */
+@media print {
+  .kp-spec-group {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
+/* Тёмный фон рамки для всех страниц, кроме обложки уже тёмной */
+.kp-page:not(.kp-page--cover) { background-color: #111827; }
+
+/* Тёмная рамка страницы как на титульнике */
+.kp-page,
+.kp-page--inner,
+.kp-page--equipment { background-color: #111827 !important; }
+
+/* ─── СТИЛИ ДЛЯ PDF-ГЕНЕРАЦИИ ───────────────────────────────────── */
+/* Обертка для секций PDF - запрещаем перенос внутри */
+.page-section {
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+  -webkit-region-break-inside: avoid;
+}
+
+/* Стили для PDF-контейнера - исправляем верстку */
+.pdf-container *,
+#pdfContainer *,
+.kp-page * {
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  line-height: 1.35 !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Градиент для блока подарков */
+.gifts-box {
+  background: linear-gradient(90deg, #f7b04a 0%, #e88c2f 100%);
+  border-radius: 20px;
+  padding: 32px 40px;
+}
+
+/* Футер на последней странице */
+.footer {
+  margin-top: 80px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+/* ─── МОДАЛЬНОЕ ОКНО ДЛЯ ПРЕДУПРЕЖДЕНИЯ О БРИГАДЕ ───────────────────────────────────── */
+.pile-team-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.pile-team-modal.show {
+  display: flex;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.pile-team-modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+  position: relative;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pile-team-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pile-team-modal-icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.pile-team-modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2c3e50;
+  margin: 0;
+}
+
+.pile-team-modal-body {
+  color: #34495e;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.pile-team-modal-info {
+  background: #f8f9fa;
+  border-left: 4px solid #f39c12;
+  padding: 16px;
+  border-radius: 8px;
+  margin: 16px 0;
+}
+
+.pile-team-modal-info strong {
+  color: #e67e22;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.pile-team-modal-info ul {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+}
+
+.pile-team-modal-info li {
+  margin-bottom: 6px;
+}
+
+.pile-team-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.pile-team-modal-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.pile-team-modal-btn-primary {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+}
+
+.pile-team-modal-btn-primary:hover {
+  background: linear-gradient(135deg, #2980b9, #1f618d);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+}
+
+.pile-team-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #95a5a6;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.pile-team-modal-close:hover {
+  color: #e74c3c;
+}
+
+/* ===== Модальное окно для выбора цвета профлиста ===== */
+.prof-color-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.prof-color-modal.show {
+  display: flex;
+}
+
+.prof-color-modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+  position: relative;
+}
+
+.prof-color-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.prof-color-modal-icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.prof-color-modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2c3e50;
+  margin: 0;
+}
+
+.prof-color-modal-body {
+  color: #34495e;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.prof-color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.prof-color-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #fff;
+}
+
+.prof-color-item:hover {
+  border-color: #3498db;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
+}
+
+.prof-color-item.selected {
+  border-color: #3498db;
+  background: #f0f8ff;
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.prof-color-swatch {
+  width: 100%;
+  height: 80px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #d1d5db;
+}
+
+.prof-color-code {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.prof-color-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #2c3e50;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.prof-color-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.prof-color-modal-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.prof-color-modal-btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.prof-color-modal-btn-secondary:hover {
+  background: #e5e7eb;
+  transform: translateY(-1px);
+}
+
+.prof-color-modal-btn-primary {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+}
+
+.prof-color-modal-btn-primary:hover {
+  background: linear-gradient(135deg, #2980b9, #1f618d);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+}
+
+.prof-color-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #95a5a6;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.prof-color-modal-close:hover {
+  color: #e74c3c;
 }

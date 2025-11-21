@@ -24,7 +24,7 @@ function getUsers() {
 const USERS = getUsers();
 
 /* === 1. Аутентификация ==================== */
-function authenticate(){
+window.authenticate = function authenticate(){
   // Проверяем принудительный выход перед аутентификацией
   checkForceLogoutOnLoad();
   
@@ -57,7 +57,7 @@ function authenticate(){
 
   // твоя «первая инициализация» формы
   handleTypeChange();       // размеры и т.п.
-}
+};
 
 // Проверяем принудительный выход при загрузке страницы
 function checkForceLogoutOnLoad() {
@@ -79,6 +79,217 @@ function logout(){
   localStorage.removeItem('houseCalcUser');
   location.reload();        // перезагрузить страницу – достаточно
 }
+
+/* === 2a. Функции для модального окна предупреждения о бригаде ========= */
+function showPileTeamModal() {
+  const modal = document.getElementById('pileTeamModal');
+  if (modal) {
+    modal.classList.add('show');
+    // Закрытие по клику на фон
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        closePileTeamModal();
+      }
+    });
+    // Закрытие по Escape
+    document.addEventListener('keydown', function escapeHandler(e) {
+      if (e.key === 'Escape') {
+        closePileTeamModal();
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    });
+  }
+}
+
+function closePileTeamModal() {
+  const modal = document.getElementById('pileTeamModal');
+  if (modal) {
+    modal.classList.remove('show');
+  }
+}
+
+// Делаем функцию доступной глобально для вызова из HTML
+window.closePileTeamModal = closePileTeamModal;
+
+// Глобальный флаг для отслеживания показа модального окна о бригаде
+let screwPileWarningShown = false;
+let lastPileType = null; // Храним последний тип свай для сброса флага при смене типа
+
+// Функция проверки необходимости отдельной бригады
+function requiresSpecialBrigade(dim, cnt) {
+  const isOwnTeamType = (dim === "1.5×76" || dim === "2.0×76");
+  const isOwnTeamCount = (cnt <= 12);
+  return !isOwnTeamType || !isOwnTeamCount;
+}
+
+// Функция проверки и показа модального окна о бригаде
+function checkScrewPileBrigade(dim, cnt, showWarning = true) {
+  if (!showWarning) {
+    return; // Не показываем модалку, если явно указано
+  }
+  
+  if (!requiresSpecialBrigade(dim, cnt)) {
+    screwPileWarningShown = false;
+    return;
+  }
+  
+  // Сбрасываем флаг при смене типа свай
+  if (lastPileType !== dim) {
+    screwPileWarningShown = false;
+    lastPileType = dim;
+  }
+  
+  if (!screwPileWarningShown) {
+    screwPileWarningShown = true;
+    setTimeout(() => {
+      showPileTeamModal();
+    }, 100);
+  }
+}
+
+/* === Модальное окно для выбора цвета профлиста === */
+// Массив доступных цветов профлиста
+const PROF_COLORS = [
+  { code: 'RAL 8017', name: 'Коричневый', hex: '#4A3728' },
+  { code: 'RR 32 / RAL 8019', name: 'Тёмно-коричневый болотный', hex: '#2F1F14' },
+  { code: 'RAL 6005', name: 'Зелёный', hex: '#0F5132' },
+  { code: 'RAL 3005', name: 'Вишнёвый', hex: '#721C24' },
+  { code: 'RAL 7024', name: 'Серый графит', hex: '#474A50' },
+  { code: 'RAL 5005', name: 'Синий', hex: '#0B3C5D' }
+];
+
+// Храним выбранный цвет
+let selectedProfColor = null;
+
+function openProfColorModal() {
+  const modal = document.getElementById('profColorModal');
+  if (!modal) return;
+  
+  // Обновляем заголовок и текст в зависимости от выбранного материала
+  const modalTitle = document.getElementById('profColorModalTitle');
+  const modalText = document.getElementById('profColorModalText');
+  
+  if (selRoofMat) {
+    const materialTitles = {
+      'profColor': 'Выберите цвет профлиста',
+      'ondulin': 'Выберите цвет ондулина',
+      'tile_lom': 'Выберите цвет металлочерепицы',
+      'tile_gable': 'Выберите цвет металлочерепицы'
+    };
+    
+    const materialNames = {
+      'profColor': 'цветного профлиста',
+      'ondulin': 'ондулина',
+      'tile_lom': 'металлочерепицы (односкатная крыша)',
+      'tile_gable': 'металлочерепицы (двускатная крыша)'
+    };
+    
+    const materialTitle = materialTitles[selRoofMat.value] || 'Выберите цвет';
+    const materialName = materialNames[selRoofMat.value] || 'материала';
+    
+    if (modalTitle) {
+      modalTitle.textContent = materialTitle;
+    }
+    if (modalText) {
+      modalText.textContent = `Выберите цвет ${materialName} из доступных вариантов:`;
+    }
+  }
+  
+  // Инициализируем цвета, если еще не инициализированы
+  const grid = document.getElementById('profColorGrid');
+  if (grid && grid.children.length === 0) {
+    PROF_COLORS.forEach((color, index) => {
+      const colorItem = document.createElement('div');
+      colorItem.className = 'prof-color-item';
+      colorItem.dataset.colorIndex = index;
+      
+      const swatch = document.createElement('div');
+      swatch.className = 'prof-color-swatch';
+      swatch.style.backgroundColor = color.hex;
+      
+      const code = document.createElement('div');
+      code.className = 'prof-color-code';
+      code.textContent = color.code;
+      
+      const name = document.createElement('div');
+      name.className = 'prof-color-name';
+      name.textContent = color.name;
+      
+      colorItem.appendChild(swatch);
+      colorItem.appendChild(code);
+      colorItem.appendChild(name);
+      
+      colorItem.addEventListener('click', () => {
+        // Убираем выделение с других элементов
+        document.querySelectorAll('.prof-color-item').forEach(item => {
+          item.classList.remove('selected');
+        });
+        // Выделяем выбранный
+        colorItem.classList.add('selected');
+        selectedProfColor = color;
+      });
+      
+      grid.appendChild(colorItem);
+    });
+  }
+  
+  // Если был выбран цвет ранее, выделяем его
+  if (selectedProfColor) {
+    const items = document.querySelectorAll('.prof-color-item');
+    items.forEach((item, index) => {
+      if (PROF_COLORS[index].code === selectedProfColor.code) {
+        item.classList.add('selected');
+      }
+    });
+  }
+  
+  modal.classList.add('show');
+  
+  // Закрытие по клику на фон
+  modal.addEventListener('click', function modalClickHandler(e) {
+    if (e.target === modal) {
+      closeProfColorModal();
+      modal.removeEventListener('click', modalClickHandler);
+    }
+  });
+  
+  // Закрытие по Escape
+  const escapeHandler = function(e) {
+    if (e.key === 'Escape') {
+      closeProfColorModal();
+      document.removeEventListener('keydown', escapeHandler);
+    }
+  };
+  document.addEventListener('keydown', escapeHandler);
+}
+
+function closeProfColorModal() {
+  const modal = document.getElementById('profColorModal');
+  if (modal) {
+    modal.classList.remove('show');
+  }
+  // Если цвет не был выбран, возвращаем селект к оцинкованному профлисту
+  if (!selectedProfColor && selRoofMat && selRoofMat.value !== 'galv') {
+    selRoofMat.value = 'galv';
+    // Не вызываем calculate() здесь, чтобы избежать лишних пересчетов
+  }
+}
+
+function confirmProfColor() {
+  if (selectedProfColor) {
+    // Закрываем модальное окно
+    closeProfColorModal();
+    // Пересчитываем КП с учетом выбранного цвета
+    calculate();
+  } else {
+    alert('Пожалуйста, выберите цвет профлиста');
+  }
+}
+
+// Делаем функции доступными глобально
+window.openProfColorModal = openProfColorModal;
+window.closeProfColorModal = closeProfColorModal;
+window.confirmProfColor = confirmProfColor;
 
 /* === 3. Автовход при перезагрузке ========= */
 window.addEventListener('DOMContentLoaded', ()=>{
@@ -131,7 +342,7 @@ function getWallHeight(type, roof, ext = false) {
   // базовая высота (м)
   let h;
   if (type === "house") {
-    // у ломаной крыши внутри чуть ниже, снаружи – по стойке
+    // у низкого ската внутри чуть ниже, снаружи – по стойке
     h = (roof === "lom")
         ? (ext ? 2.4 : 2.3)   // наружные стены 2 ,4 м, внутренние 2 ,3 м
         : 2.4;                // двускатная – 2 ,4 м везде
@@ -151,8 +362,24 @@ function wallArea(w, l, h){ return 2 * (w + l) * h; }  // 2*(W+L)*H
 /* ------------------------------------------------------------------
    1. Основные константы
 ------------------------------------------------------------------ */
+// Единая функция нормализации пробелов - используется ОДИН раз при формировании данных
+function normalizeSpaces(str) {
+  if (!str) return '';
+  return String(str)
+    // все экзотические пробелы -> обычный пробел
+    .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, ' ')
+    // &nbsp; из contenteditable
+    .replace(/&nbsp;/g, ' ')
+    // любые подряд пробелы/табы/переносы -> один пробел
+    .replace(/[ \t\r\n]+/g, ' ')
+    // убираем пробелы перед знаками препинания (но НЕ перед скобками)
+    .replace(/\s+([:;,.])/g, '$1')
+    .trim();
+}
+
 function getLabel(opt) {
-  return opt.text.replace(/\s*\([^)]*₽[^)]*\)/g, "").trim();
+  let text = opt.text.replace(/\s*\([^)]*₽[^)]*\)/g, "").trim();
+  return normalizeSpaces(text);
 }
 
 // Базовые тарифы
@@ -228,19 +455,19 @@ const FLOOR_MAT = {
   planed35x140: 1400
 };
 const FLOOR_CAPT = {
-  plain: "Пол: обрезная доска 25×150 мм",
+  plain: "Пол: Обрезная доска 25×150 мм",
   osb:   "Пол: ОСБ влагостойкий",
   board50x150: "Пол: Шпунт доска чистовой 50×150 мм",
-  planed35x140: "Пол: строганая 35×140 мм"
+  planed35x140: "Пол: Строганая 35×140 мм"
 };
 const RAMP = 2000; // пандус
 
 // Перегородки
 const PART       = { p1:2500, p2:3200, p3:4000 };
 const PART_TITLE = {
-  p1: "Перегородка односторонняя",
-  p2: "Перегородка двусторонняя",
-  p3: "Перегородка двусторонняя с утеплением 100 мм"
+  p1: "Стена односторонняя",
+  p2: "Стена двусторонняя",
+  p3: "Стена двусторонняя с утеплением 100 мм"
 };
 
 // Сваи для обычных линеек (БЕЗ наценки 10%)
@@ -473,7 +700,6 @@ const VERANDA_CONFIG = {
     '6x6_alt': { main: '6x4', veranda: '6x2', price: 341000 } // 310000 + 10%
   }
 };
-
 const CONFIG = {
   hoblok: {
     widths:[2,2.5,3,4,5,6,7,8],       // ИСПРАВЛЕНО: ширина (большие значения)
@@ -581,7 +807,6 @@ const NONSTD_RATE = {
   bytovka: 8800,   // ₽/м² (с наценкой 10%)
   hoblok:  6050    // ₽/м² (с наценкой 10%)
 };
-
 // ДОПОЛНИТЕЛЬНЫЕ ОПЦИИ ДЛЯ ЭКОНОМ-ЛИНЕЙКИ (ЦЕНЫ С НАЦЕНКОЙ 10%)
 const ECONOMY_EXTRAS = {
   // Утепление потолка 50 мм (фикс-цены по размерам с наценкой 10%)
@@ -931,24 +1156,51 @@ ymaps.ready(() => {
 // Инициализируем карту
 initMap();
 
-// Инициализация веранд при загрузке
+// Инициализация веранд при загрузке (после определения функции)
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof updateVerandaOptions === 'function') {
 updateVerandaOptions();
+  }
+});
+
   // ─── Подсказки адреса, как в тепличном калькуляторе ───────────────────────────
 const addrInput   = document.getElementById('inpAddr');
 const suggBox     = document.getElementById('suggestions');
-
 // Дебаунс для ввода адреса
 let addressInputTimeout;
-
 // Кэш для маршрутов (защита от повторных запросов)
 const routeCache = new Map();
 const MAX_CACHE_SIZE = 100;
 const CACHE_EXPIRY = 30 * 60 * 1000; // 30 минут
-
 // Счетчик запросов (защита от лимитов API)
 let requestCount = 0;
 const MAX_REQUESTS_PER_MINUTE = 10;
 let lastRequestTime = 0;
+
+// Debounce для calculate() - защита от частых вызовов при изменении адреса
+let calculateTimeout = null;
+let lastCalculateAddress = '';
+
+// Обертка для calculate() с debounce для адреса доставки
+function calculateWithDebounce() {
+  const currentAddress = inpAddr.value.trim();
+  const addressChanged = currentAddress !== lastCalculateAddress;
+  
+  // Если адрес изменился, используем debounce (500ms)
+  // Если адрес не изменился (изменились другие параметры), вызываем сразу
+  if (addressChanged && currentAddress.length > 0) {
+    lastCalculateAddress = currentAddress;
+    clearTimeout(calculateTimeout);
+    calculateTimeout = setTimeout(() => {
+      calculate();
+    }, 500);
+  } else {
+    // Для всех остальных изменений вызываем сразу
+    clearTimeout(calculateTimeout);
+    calculate();
+  }
+}
+
 addrInput.addEventListener('input', () => {
     const q = addrInput.value.trim();
     if (q.length < 3) {            // меньше 3-х символов — ничего не показываем
@@ -984,6 +1236,7 @@ addrInput.addEventListener('input', () => {
             div.onclick = () => {
                 addrInput.value      = addr;      // вставляем выбранный адрес
                 suggBox.style.display = 'none';   // прячем подсказки
+                lastCalculateAddress = ''; // Сбрасываем, чтобы calculate() вызвался
                 calculate(); // Обновляем КП при выборе адреса
              };
 
@@ -1047,7 +1300,7 @@ document.addEventListener('click', e => {
     });
   });
   
-  // Обработчик для типа доставки в эконом-линейке
+  // Обработчик для типа доставки в эконом-линейки
   document.addEventListener('change', function(e) {
     if (e.target.name === 'deliveryType') {
       // Логика доставки обрабатывается в функции calculate()
@@ -1055,15 +1308,85 @@ document.addEventListener('click', e => {
     }
   });
   
-  btnCalc.addEventListener("click", calculate);
-  btnReset.addEventListener("click", resetFilters);
+  // Добавляем обработчики кнопок
+  // Используем функцию-обертку для безопасного вызова
+  if (btnCalc) {
+    btnCalc.addEventListener("click", function() {
+      if (typeof calculate === 'function') {
+        calculate();
+      } else {
+        console.error('Функция calculate не определена');
+      }
+    });
+  } else {
+    console.error('Кнопка btnCalc не найдена');
+  }
+  
+  if (btnReset) {
+    btnReset.addEventListener("click", function() {
+      if (typeof resetFilters === 'function') {
+        resetFilters();
+      } else {
+        console.error('Функция resetFilters не определена');
+      }
+    });
+  } else {
+    console.error('Кнопка btnReset не найдена');
+  }
+  
+  // Обработчик переключения короткого/полного КП (кнопка)
+  const btnShortKP = document.getElementById("btnShortKP");
+  let isShortKPActive = true; // По умолчанию включаем короткое КП
+  if (btnShortKP) {
+    // Отразим начальное состояние кнопки
+    btnShortKP.classList.add("active");
+    btnShortKP.textContent = "Полное КП";
+    btnShortKP.addEventListener("click", function() {
+      isShortKPActive = !isShortKPActive;
+      if (isShortKPActive) {
+        btnShortKP.classList.add("active");
+        btnShortKP.textContent = "Полное КП";
+      } else {
+        btnShortKP.classList.remove("active");
+        btnShortKP.textContent = "Короткое КП";
+      }
+      if (out.textContent.trim()) {
+        calculate(); // Пересчитываем КП при изменении режима
+      }
+    });
+  }
+  
+  // Обработчик переключения формата КП (WhatsApp/Авито)
+  window.kpFormat = 'whatsapp'; // По умолчанию WhatsApp
+  const formatSwitcher = document.getElementById('kpFormatSwitcher');
+  if (formatSwitcher) {
+    const formatButtons = formatSwitcher.querySelectorAll('.format-btn');
+    formatButtons.forEach(btn => {
+      btn.addEventListener('click', function() {
+        const format = this.getAttribute('data-format');
+        window.kpFormat = format;
+        
+        // Обновляем активную кнопку
+        formatButtons.forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Пересчитываем КП если оно уже было сформировано
+        if (out.textContent.trim()) {
+          calculate();
+        }
+      });
+    });
+  }
   
   // Обработчики для чекбоксов
   const chkMouseNew = document.getElementById('chkMouseNew');
   if (chkMouseNew) {
     chkMouseNew.addEventListener("change", calculate);
   }
-  chkRamp.addEventListener("change", calculate);
+  const chkRampLocal = document.getElementById('chkRamp');
+  if (chkRampLocal) {
+    chkRampLocal.addEventListener("change", calculate);
+  }
   
   // Обработчики для селектов и полей
   selFloor.addEventListener("change", calculate);
@@ -1072,7 +1395,23 @@ document.addEventListener('click', e => {
 
   // Обработчики для всех селектов (используем уже объявленные переменные)
   if (selInsul) selInsul.addEventListener("change", calculate);
-  if (selRoofMat) selRoofMat.addEventListener("change", calculate);
+  if (selRoofMat) {
+    // Сохраняем предыдущее значение для отката
+    let prevRoofMatValue = selRoofMat.value;
+    
+    selRoofMat.addEventListener("change", function(e) {
+      // Если выбран любой материал кровли кроме оцинкованного профлиста, открываем модальное окно
+      if (e.target.value !== "galv") {
+        prevRoofMatValue = selRoofMat.value;
+        openProfColorModal();
+      } else {
+        // Сбрасываем выбранный цвет при выборе оцинкованного профлиста
+        selectedProfColor = null;
+        prevRoofMatValue = e.target.value;
+        calculate();
+      }
+    });
+  }
   
   if (selInRep) selInRep.addEventListener("change", calculate);
   if (selOutRep) selOutRep.addEventListener("change", calculate);
@@ -1085,12 +1424,32 @@ document.addEventListener('click', e => {
 
   if (chkInVer) chkInVer.addEventListener("change", calculate);
   if (verWidth) {
-    verWidth.addEventListener("change", calculate);
-    verWidth.addEventListener("input", calculate);
+    verWidth.addEventListener("change", function() {
+      // При изменении веранды пересчитываем БЕЗ показа модального окна
+      window.__updatePilesWithoutWarning = true;
+      calculate();
+      window.__updatePilesWithoutWarning = false;
+    });
+    verWidth.addEventListener("input", function() {
+      // При вводе веранды пересчитываем БЕЗ показа модального окна
+      window.__updatePilesWithoutWarning = true;
+      calculate();
+      window.__updatePilesWithoutWarning = false;
+    });
   }
   if (verDepth) {
-    verDepth.addEventListener("change", calculate);
-    verDepth.addEventListener("input", calculate);
+    verDepth.addEventListener("change", function() {
+      // При изменении веранды пересчитываем БЕЗ показа модального окна
+      window.__updatePilesWithoutWarning = true;
+      calculate();
+      window.__updatePilesWithoutWarning = false;
+    });
+    verDepth.addEventListener("input", function() {
+      // При вводе веранды пересчитываем БЕЗ показа модального окна
+      window.__updatePilesWithoutWarning = true;
+      calculate();
+      window.__updatePilesWithoutWarning = false;
+    });
   }
   if (verRoofType.length > 0) {
     verRoofType.forEach(radio => radio.addEventListener("change", calculate));
@@ -1110,7 +1469,33 @@ document.addEventListener('click', e => {
   
   // Обработчики для свай
   const selSvaiType = document.getElementById('selSvaiType');
-  if (selSvaiType) selSvaiType.addEventListener("change", calculate);
+  if (selSvaiType) {
+    // Отслеживаем изменение выбора свай для показа модального окна
+    // ВАЖНО: используем один обработчик, чтобы не дублировать
+    if (!selSvaiType.hasAttribute('data-pile-handler-added')) {
+      selSvaiType.setAttribute('data-pile-handler-added', 'true');
+      
+      selSvaiType.addEventListener("change", function(e) {
+        // КРИТИЧНО: Игнорируем событие, если оно вызвано программно (при обновлении опций)
+        if (selSvaiType.hasAttribute('data-updating')) {
+          return;
+        }
+        
+        const currentValue = selSvaiType.value || '';
+        if (!currentValue) {
+          // Сбрасываем флаг при удалении свай
+          screwPileWarningShown = false;
+          lastPileType = null;
+          calculate();
+          return;
+        }
+        
+        // Вызываем calculate() для пересчета всего
+        // Модальное окно будет показано внутри calculate() через checkScrewPileBrigade()
+        calculate();
+      });
+    }
+  }
   if (selEconomySvaiType) selEconomySvaiType.addEventListener("change", calculate);
   
   // Обработчики для эконом-линейки
@@ -1188,23 +1573,33 @@ updateStaticPriceLabels();
     } else {
       console.error('chkMouseNew element not found (delayed)!');
     }
+    
+    // Добавляем обработчик для chkRamp после загрузки всех элементов
+    const chkRampDelayed = document.getElementById('chkRamp');
+    if (chkRampDelayed) {
+      chkRampDelayed.addEventListener("change", function() {
+        calculate();
+      });
+    } else {
+      console.error('chkRamp element not found (delayed)!');
+    }
   }, 100);
 
 // Кнопка «Копировать КП»
 const btnCopy = document.getElementById("btnCopy");
-btnCopy.addEventListener("click", () => {
-  const text = out.innerText;
-  if (!text) return alert("Нечего копировать.");
-  navigator.clipboard.writeText(text)
-    .then(() => {
-      btnCopy.textContent = "Скопировано!";
-      setTimeout(() => btnCopy.textContent = "Копировать КП", 1500);
-    })
-    .catch(() => alert("Не удалось скопировать в буфер обмена."));
-});
-
-// Функция генерации PDF временно отключена
-
+if (btnCopy) {
+  btnCopy.addEventListener("click", () => {
+    const text = out.innerText;
+    if (!text) return alert("Нечего копировать.");
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        btnCopy.textContent = "Скопировано!";
+        setTimeout(() => btnCopy.textContent = "Копировать КП", 1500);
+      })
+      .catch(() => alert("Не удалось скопировать в буфер обмена."));
+  });
+}
+// Кнопка «Скачать PDF» - обработчик будет добавлен после определения функции generatePDF
 /**
  * Жёстко заполняет селекты отделки для заданного профиля
  * @param {"hoblok"|"bytovka"|"house"} type
@@ -1387,7 +1782,7 @@ if (cfg.isEconomy) {
   if (!inp) return;
   const gableSurcharge = formatPrice(grossInt(1800)); // 1800 → 1980 ₽/м²
   lbl.childNodes[1].nodeValue = inp.value === "lom"
-    ? (type==="house" ? " Ломаная" : " Односкатная (базовая)")
+    ? (type==="house" ? " Низкий скат" : " Односкатная (базовая)")
     : (type==="house" ? " Двускатная" : ` Двускатная (+${gableSurcharge} ₽/м²)`);
 });
 
@@ -1407,13 +1802,10 @@ if (cfg.isEconomy) {
   sel.closest('label').style.display = 'block';
   }
 });
-
 // -------------------------
 // уже затем – то, что добавляем
 // -------------------------
-
 selFloor.value = "plain";        // базовый пол
-// chkMouse.checked = chkRamp.checked = false;  // Временно закомментировано для отладки
 
 
 // если выбран хозблок – прячем утепление
@@ -1425,7 +1817,6 @@ if (selType.value === 'hoblok' && selInsul) {
 } else if (selInsul && selInsul.closest('label')) {
   selInsul.closest('label').style.display = '';  // в остальных строениях показываем
 }
-
 // Для эконом-линейки скрываем ВСЕ старые поля
 if (isEconomy) {
   // Скрываем ВСЕ старые поля - эконом-линейка работает отдельно
@@ -1605,16 +1996,26 @@ function updateBaseMarkerOnMap(type) {
   if (typeof map === 'undefined' || !map) return;
   
   // Очищаем только маркеры базы (оставляем маршрут если есть)
-  const geoObjects = map.geoObjects.getIterator();
   const objectsToRemove = [];
   
-  geoObjects.each(function(obj) {
-    if (obj.properties && obj.properties.get('isBaseMarker')) {
+  // Правильный способ итерации по geoObjects в Yandex Maps
+  map.geoObjects.each(function(obj) {
+    try {
+      if (obj.properties && obj.properties.get && obj.properties.get('isBaseMarker')) {
       objectsToRemove.push(obj);
+      }
+    } catch (e) {
+      // Игнорируем ошибки при проверке свойств
     }
   });
   
-  objectsToRemove.forEach(obj => map.geoObjects.remove(obj));
+  objectsToRemove.forEach(obj => {
+    try {
+      map.geoObjects.remove(obj);
+    } catch (e) {
+      // Игнорируем ошибки при удалении
+    }
+  });
   
   // Определяем правильную базу
   const isEconomy = type.includes('economy');
@@ -1635,6 +2036,89 @@ function updateBaseMarkerOnMap(type) {
 /* ------------------------------------------------------------------
    6. populatePileOptions — наполняем селект сваями
 ------------------------------------------------------------------ */
+// Функция для обновления текста выбранной опции в селекте свай
+function updatePileSelectText(selSvaiType, dim, cnt, pricePerPile) {
+  if (!selSvaiType || !selSvaiType.value || selSvaiType.value !== dim) return;
+  
+  const selectedOption = Array.from(selSvaiType.options).find(opt => opt.value === dim);
+  if (!selectedOption) return;
+  
+  // Временно отключаем обработчик change
+  selSvaiType.setAttribute('data-updating', 'true');
+  
+  // Рассчитываем цену
+  let totalPrice;
+  let priceWithMarkup;
+  
+  if (dim === "1.5×76" && cnt >= 16) {
+    priceWithMarkup = grossInt(3350); // 3350₽/шт для 16+ штук + 10%
+    totalPrice = priceWithMarkup * cnt;
+  } else {
+    priceWithMarkup = grossInt(pricePerPile); // цена с наценкой 10%
+    totalPrice = priceWithMarkup * cnt;
+  }
+  
+  // Обновляем текст опции
+  selectedOption.textContent = `${dim} × ${cnt} шт — ${formatPrice(totalPrice)} ₽ (${formatPrice(priceWithMarkup)} ₽/шт)`;
+  
+  // Включаем обработчик обратно
+  selSvaiType.removeAttribute('data-updating');
+}
+
+// Функция для обновления всех опций в селекте свай с актуальным количеством
+function updateAllPileOptions(selSvaiType, verandaWidthForPiles, isInsideVeranda, l, w) {
+  if (!selSvaiType || !selSvaiType.options || selSvaiType.options.length === 0) return;
+  
+  // Сохраняем текущее выбранное значение
+  const currentValue = selSvaiType.value;
+  const currentIndex = selSvaiType.selectedIndex;
+  
+  // КРИТИЧНО: Временно отключаем обработчик change, чтобы избежать вызова модального окна
+  // при программном изменении value
+  selSvaiType.setAttribute('data-updating', 'true');
+  
+  // Перебираем все опции и обновляем их текст с актуальным количеством свай
+  Array.from(selSvaiType.options).forEach(option => {
+    if (!option.value) return; // Пропускаем пустую опцию
+    
+    const dim = option.value;
+    // Рассчитываем количество свай с учетом веранды для каждой опции
+    const cnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVeranda);
+    
+    // Базовая цена за сваю (БЕЗ наценки)
+    const pricePerPile = PILES_STANDARD[dim];
+    if (!pricePerPile) return;
+    
+    // Рассчитываем цену
+    let totalPrice;
+    let priceWithMarkup;
+    
+    if (dim === "1.5×76" && cnt >= 16) {
+      priceWithMarkup = grossInt(3350); // 3350₽/шт для 16+ штук + 10%
+      totalPrice = priceWithMarkup * cnt;
+    } else {
+      priceWithMarkup = grossInt(pricePerPile); // цена с наценкой 10%
+      totalPrice = priceWithMarkup * cnt;
+    }
+    
+    // Обновляем текст опции
+    option.textContent = `${dim} × ${cnt} шт — ${formatPrice(totalPrice)} ₽ (${formatPrice(priceWithMarkup)} ₽/шт)`;
+  });
+  
+  // Восстанавливаем выбранное значение через selectedIndex (это не вызовет change)
+  if (currentIndex >= 0 && currentIndex < selSvaiType.options.length) {
+    selSvaiType.selectedIndex = currentIndex;
+  } else if (currentValue) {
+    const option = Array.from(selSvaiType.options).find(opt => opt.value === currentValue);
+    if (option) {
+      selSvaiType.selectedIndex = Array.from(selSvaiType.options).indexOf(option);
+    }
+  }
+  
+  // Включаем обработчик обратно
+  selSvaiType.removeAttribute('data-updating');
+}
+
 function populatePileOptions () {
   const type = selType.value;
   const w    = +inpWidth.value;
@@ -1647,17 +2131,33 @@ function populatePileOptions () {
     return;
   }
 
-  // Используем логику расчета свай по спецификации
+  // Получаем параметры веранды для правильного расчета количества свай
+  const inpVerWidth = document.getElementById('verWidth');
+  const inpVerDepth = document.getElementById('verDepth');
+  const chkInVer = document.getElementById('chkInVer');
+  const vw = inpVerWidth ? (parseFloat(inpVerWidth.value) || 0) : 0;
+  const isInsideVer = chkInVer ? chkInVer.checked : false;
+  
+  // Рассчитываем ширину веранды для расчета свай
+  let verandaWidthForPiles = 0;
+  if (type === 'house' && vw > 0 && !isInsideVer) {
+    verandaWidthForPiles = vw;
+  }
+
+  // Используем логику расчета свай по спецификации С УЧЕТОМ ВЕРАНДЫ
   // В калькуляторе: w = ширина (inpWidth), l = длина (inpLength)
   // Функция calculatePilesByRows автоматически определяет оптимальное расположение рядов
   // (вдоль большей стороны), поэтому порядок параметров не критичен
-  const cnt = calculatePilesByRows(l, w, 0, false);
+  const cnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVer);
 
   // 👉  для домов Ø76 не показываем (если больше 12 свай)
   const skip76 = (type === "house" && cnt > 12);
 
   const selSvaiType = document.getElementById('selSvaiType');
   if (selSvaiType) {
+    // Сохраняем текущее выбранное значение перед пересозданием опций
+    const currentValue = selSvaiType.value;
+    
     selSvaiType.innerHTML = '<option value="">— без свай —</option>';
 
     // Используем PILES_STANDARD для обычных линеек с наценкой 10%
@@ -1671,6 +2171,30 @@ function populatePileOptions () {
       selSvaiType.innerHTML +=
         `<option value="${dim}">${dim} × ${cnt} шт — ${formatPrice(totalPrice)} ₽ (${formatPrice(priceWithMarkup)} ₽/шт)</option>`;
     });
+    
+    // Восстанавливаем выбранное значение после пересоздания опций
+    if (currentValue) {
+      const option = Array.from(selSvaiType.options).find(opt => opt.value === currentValue);
+      if (option) {
+        // Временно отключаем обработчик change при восстановлении значения
+        selSvaiType.setAttribute('data-updating', 'true');
+        selSvaiType.value = currentValue;
+        selSvaiType.removeAttribute('data-updating');
+      }
+    }
+    
+    // КРИТИЧНО: После пересоздания опций обновляем их с учетом веранды
+    // Получаем параметры веранды для правильного расчета
+    const inpVerWidth = document.getElementById('verWidth');
+    const chkInVer = document.getElementById('chkInVer');
+    const vw = inpVerWidth ? (parseFloat(inpVerWidth.value) || 0) : 0;
+    const isInsideVer = chkInVer ? chkInVer.checked : false;
+    let verandaWidthForPiles = 0;
+    if (type === 'house' && vw > 0 && !isInsideVer) {
+      verandaWidthForPiles = vw;
+    }
+    // Обновляем опции с учетом веранды
+    updateAllPileOptions(selSvaiType, verandaWidthForPiles, isInsideVer, l, w);
   }
 }
 
@@ -1727,9 +2251,9 @@ function addWindowRow () {
 
     } else if (t === "metalDoor") {
       const CAPTION = {
-        rf:"Дверь металлическая РФ",
+        rf:"Дверь металлическая Тула",
         rfThermo:"Дверь РФ (термо)",
-        thermoLux:"Термо Люкс"
+        thermoLux:"Дверь термолюкс"
       };
       Object.entries(METAL_PRICES).forEach(([code, p]) => {
         selSize.innerHTML +=
@@ -1855,7 +2379,6 @@ function updatePartitionSizesInRow(row) {
     sizeSelect.appendChild(option);
   });
 }
-
 /* ------------------------------------------------------------------
    7b. addWindowRowEconomy — добавляем строку «Окно / дверь» для эконом-линейки
 ------------------------------------------------------------------ */
@@ -1914,7 +2437,7 @@ function addWindowRowEconomy () {
     } else if (t === "metalDoor") {
       Object.entries(ECONOMY_METAL_PRICES).forEach(([code, p]) => {
         selSize.innerHTML +=
-          `<option value="${code}">Дверь металлическая РФ (${formatPrice(p)} ₽)</option>`;
+          `<option value="${code}">Дверь металлическая Тула (${formatPrice(p)} ₽)</option>`;
       });
     }
   }
@@ -2003,12 +2526,254 @@ function getModPrice(type, w, l) {
   return rest < 0.01 ? sum : null;     // если «хвост» остался ⇒ null
 }
 
+// Функция группировки комплектации по логическим группам
+function groupKomplektatsiya(pkg, format = 'whatsapp') {
+  if (!pkg || pkg.length === 0) return [];
+  
+  // Определяем, нужно ли добавлять звездочки для жирного текста
+  const useBold = format === 'whatsapp';
+  
+  // Группы в порядке вывода
+  const groups = {
+    karkas: [],           // 1. Каркас и основание
+    fundament: [],        // 2. Фундамент
+    uteplenie: [],        // 3. Утепление и защита
+    krysha: [],           // 4. Крыша и кровля
+    otdelka: {            // 5. Отделка (особая группа с подпунктами)
+      naruzhnaya: [],
+      vnutrennyaya: []
+    },
+    steny: [],            // 6. Стены и перегородки
+    oknaDveri: [],        // 7. Окна и двери
+    pol: [],              // 8. Пол
+    veranda: [],          // 9. Веранды и пристройки
+    razmery: [],          // 10. Размеры и высота
+    prochee: []           // 11. Прочее
+  };
+  
+  // Распределяем элементы по группам
+  pkg.forEach(item => {
+    const lower = item.toLowerCase();
+    const trimmed = item.trim();
+    // Удаляем префикс "– " или "- " и все пробелы в начале
+    const clean = trimmed.replace(/^[–-]\s*/, '').replace(/^\s+/, '').trim();
+    const cleanLower = clean.toLowerCase();
+    
+    // 1) Окна и двери (первыми!)
+    if (lower.includes('окно') || lower.includes('дверь') || lower.includes('двери')) {
+      groups.oknaDveri.push(item);
+    
+    // 2) Отделка (проверяем ДО других групп, чтобы не перехватить подпункты)
+    } else if (trimmed === '– Отделка' || trimmed === '- Отделка') {
+      // Заголовок "Отделка" - пропускаем, он будет добавлен при выводе
+    } else if (cleanLower.startsWith('наружная:')) {
+      // Подпункт наружной отделки (любой формат: "  Наружная:", "– Наружная:", "Наружная:")
+      const text = clean.replace(/^наружная\s*:\s*/i, '').trim();
+      if (text) groups.otdelka.naruzhnaya.push(text);
+    } else if (cleanLower.startsWith('внутренняя:')) {
+      // Подпункт внутренней отделки (любой формат: "  Внутренняя:", "– Внутренняя:", "Внутренняя:")
+      const text = clean.replace(/^внутренняя\s*:\s*/i, '').trim();
+      if (text) groups.otdelka.vnutrennyaya.push(text);
+    } else if (lower.includes('наружная отделка') || 
+               (lower.includes('наружная') && lower.includes('отделка') && !lower.includes('дверь'))) {
+      const text = clean.replace(/^наружная\s+отделка\s*:\s*/i, '').trim();
+      if (text) groups.otdelka.naruzhnaya.push(text);
+    } else if (lower.includes('внутренняя отделка') || 
+               (lower.includes('внутренняя') && lower.includes('отделка') && !lower.includes('дверь')) || 
+               lower.includes('оргалит')) {
+      const text = clean.replace(/^внутренняя\s+отделка\s*:\s*/i, '').trim();
+      if (text) groups.otdelka.vnutrennyaya.push(text);
+    
+    // 3) Фундамент
+    } else if (lower.includes('фундамент') || lower.includes('свайн')) {
+      groups.fundament.push(item);
+    
+    // 4) Веранды и пристройки
+    } else if (lower.includes('веранда') || lower.includes('терраса') || lower.includes('пристрой')) {
+      groups.veranda.push(item);
+    
+    // 5) Стены и перегородки
+    } else if (lower.includes('перегородка') || (lower.includes('стена') && !lower.includes('полозья'))) {
+      groups.steny.push(item);
+    
+    // 6) Каркас и основание (проверяем ДО пола, чтобы полозья не попали в пол)
+    } else if (lower.includes('обвязочный брус') || lower.startsWith('– каркас') || 
+               lower.includes('полозья') || (lower.includes('каркас') && !lower.includes('отделка'))) {
+      groups.karkas.push(item);
+    
+    // 7) Пол (только если это не полозья)
+    } else if ((lower.startsWith('– пол') || lower.includes('пол:')) && !lower.includes('полозья')) {
+      groups.pol.push(item);
+    
+    // 8) Утепление и защита
+    } else if (lower.includes('утепление') || lower.includes('вата') || 
+               lower.includes('ветро') || lower.includes('паро-') || 
+               lower.includes('сетка «анти-мышь»') || lower.includes('сетка "анти-мышь"')) {
+      groups.uteplenie.push(item);
+    
+    // 9) Крыша и кровля
+    } else if (lower.includes('крыша') || lower.includes('кровля') || 
+               lower.includes('профнастил') || lower.includes('металлочерепица') || 
+               lower.includes('ондулин') || lower.includes('профлист')) {
+      groups.krysha.push(item);
+    
+    // 10) Размеры и высота
+    } else if (lower.includes('высота') || lower.includes('высоту') || 
+               lower.includes('+0,') || lower.includes('+ 0,') || 
+               lower.includes('площадь') || lower.includes('тёплое помещение')) {
+      groups.razmery.push(item);
+    
+    // 11) Всё остальное — Прочее (исключаем предупреждения)
+    } else {
+      // Исключаем предупреждения про сваи и доставку - они идут в блок "Важно:"
+      if (!lower.includes('внимание') && !lower.includes('монтаж свай') && 
+          !lower.includes('доставка: 60') && !lower.includes('доставка 60')) {
+        groups.prochee.push(item);
+      }
+      // Предупреждения просто пропускаем - они уже обработаны в importantNotes
+    }
+  });
+  
+  // Формируем итоговый массив в правильном порядке с заголовками групп
+  const result = [];
+  let isFirstGroup = true;
+  
+  // Вспомогательная функция для форматирования заголовка группы
+  const formatGroupTitle = (title) => {
+    return useBold ? `• *${title}*` : `• ${title}`;
+  };
+  
+  // 1. Каркас и основание
+  if (groups.karkas.length > 0) {
+    if (!isFirstGroup) result.push(''); // Пустая строка перед группой
+    result.push(formatGroupTitle('Каркас и основание'));
+    result.push(...groups.karkas);
+    isFirstGroup = false;
+  }
+  
+  // 2. Фундамент
+  if (groups.fundament.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Фундамент'));
+    result.push(...groups.fundament);
+    isFirstGroup = false;
+  }
+  
+  // 3. Утепление и защита
+  if (groups.uteplenie.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Утепление и защита'));
+    result.push(...groups.uteplenie);
+    isFirstGroup = false;
+  }
+  
+  // 4. Крыша и кровля
+  if (groups.krysha.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Крыша и кровля'));
+    result.push(...groups.krysha);
+    isFirstGroup = false;
+  }
+  
+  // 5. Отделка (особая обработка)
+  if (groups.otdelka.naruzhnaya.length > 0 || groups.otdelka.vnutrennyaya.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Отделка'));
+    
+    // Проверяем, одинаковые ли наружная и внутренняя отделка
+    const naruzh = groups.otdelka.naruzhnaya[0] || '';
+    const vnutr = groups.otdelka.vnutrennyaya[0] || '';
+    
+    if (naruzh && vnutr && naruzh.trim() === vnutr.trim()) {
+      // Если отделка одинаковая - объединяем в одну строку
+      result.push(`  ${naruzh} внутри и снаружи`);
+    } else {
+      // Если разные - выводим отдельно
+      if (groups.otdelka.naruzhnaya.length > 0) {
+        groups.otdelka.naruzhnaya.forEach(item => {
+          result.push(`  Наружная: ${item}`);
+        });
+      }
+      if (groups.otdelka.vnutrennyaya.length > 0) {
+        groups.otdelka.vnutrennyaya.forEach(item => {
+          result.push(`  Внутренняя: ${item}`);
+        });
+      }
+    }
+    isFirstGroup = false;
+  }
+  
+  // 6. Стены
+  if (groups.steny.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Стены'));
+    result.push(...groups.steny);
+    isFirstGroup = false;
+  }
+  
+  // 7. Окна и двери
+  if (groups.oknaDveri.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Окна и двери'));
+    result.push(...groups.oknaDveri);
+    isFirstGroup = false;
+  }
+  
+  // 8. Пол
+  if (groups.pol.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Пол'));
+    // Убираем дублирование "Пол:" из элементов
+    groups.pol.forEach(item => {
+      let cleanItem = item.replace(/^[–-]\s*пол\s*:\s*/i, '– ').trim();
+      if (!cleanItem.startsWith('–')) cleanItem = '– ' + cleanItem;
+      result.push(cleanItem);
+    });
+    isFirstGroup = false;
+  }
+  
+  // 9. Веранды и пристройки
+  if (groups.veranda.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Веранды и пристройки'));
+    result.push(...groups.veranda);
+    isFirstGroup = false;
+  }
+  
+  // 10. Размеры и высота
+  if (groups.razmery.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Размеры и высота'));
+    result.push(...groups.razmery);
+    isFirstGroup = false;
+  }
+  
+  // 11. Прочее
+  if (groups.prochee.length > 0) {
+    if (!isFirstGroup) result.push('');
+    result.push(formatGroupTitle('Прочее'));
+    result.push(...groups.prochee);
+    isFirstGroup = false;
+  }
+  
+  return result;
+}
+
 /* ------------------------------------------------------------------
    8. calculate — основная функция расчёта
 ------------------------------------------------------------------ */
 async function calculate(){
   // Проверяем принудительный выход перед каждым расчетом
   checkForceLogoutOnLoad();
+  
+  // Модальное окно теперь показывается ПРЯМО в обработчике change селекта свай
+  // Здесь больше не нужно проверять флаги - они не используются
+  
+  // Проверяем режим короткого КП (через кнопку)
+  // Когда кнопка НЕ активна - показываем полное КП (по умолчанию)
+  // Когда кнопка активна (класс active) - показываем короткое КП
+  const btnShortKP = document.getElementById("btnShortKP");
+  const isShortKP = btnShortKP ? btnShortKP.classList.contains("active") : false;
   
   const type = selType.value;
   const cfg = CONFIG[type];
@@ -2021,21 +2786,30 @@ async function calculate(){
     return;
   }
   
+  // Получаем элемент пандуса
+  const chkRamp = document.getElementById('chkRamp');
 
     /* ---   ОБЪЯВЛЯЕМ СРАЗУ, чтобы не было ReferenceError   --- */
   const pkg = [];                  // список «Комплектация»
   let baseWinSize,  baseWinQty;    // базовые окна
   let baseDoorLabel, baseDoorQty;  // базовые двери
-  let heightNote = "";             // заметка о высоте
+  let heightNote = "";             // заметка о высоте (больше не используется)
   let partType = "none";           // тип перегородки
   let partLen = 0;                 // длина перегородки
   let floorCode = "plain";         // код материала пола
+  let importantNotes = [];         // важные заметки (сваи, доставка и т.д.)
+  
+  // Функция для добавления в pkg с единой нормализацией
+  function pushPkg(line) {
+    if (!line) return;
+    pkg.push(normalizeSpaces(line));
+  }
 
   if (type === "house") {          // каркасный дом
   baseWinSize   = "80×80";
   baseWinQty    = 3;
-  baseDoorLabel = "Двери РФ: самонаборные";
   baseDoorQty   = 2;
+  baseDoorLabel = baseDoorQty > 1 ? "Самонаборные двери" : "Самонаборная дверь";
 } else if (isEconomy) {           // эконом-линейка
   baseWinSize   = "55×80";        // деревянное окно по умолчанию
   baseWinQty    = 1;
@@ -2126,8 +2900,6 @@ if (address) {
       hasRoute = false;
     } else {
       hasRoute = true;
-      // Пересчитываем доставку с новым километражем
-      console.log("Маршрут построен, пересчитываем доставку...");
     }
   } catch (error) {
     console.error("Ошибка при построении маршрута:", error);
@@ -2271,6 +3043,13 @@ if (!basePrice && wPrice === 2.5) {
 
   /* ===== 8.3. Доп. опции ===== */
   let extras = 0, linesExtra = [];
+  // Флаг: были ли добавлены окна ПВХ (чтобы скрыть базовые «деревянные окна» из комплектации)
+  let pvcWindowsAdded = false;
+  // Копим строки окон ПВХ, чтобы вставить их логически рядом с дверями
+  const pvcWindowLines = [];
+  
+  // Группировка окон для объединения одинаковых (по размеру и камерам)
+  const windowsGroup = {}; // ключ: "Окно ПВХ 60×90", значение: {qty: сумма, price: цена за шт}
 
     // универсальная функция — собираем в map
 const extraMap = {};
@@ -2283,7 +3062,27 @@ function addExtra(sum, label, skipMarkup = false){
   extras += finalSum;
   extraMap[label] = (extraMap[label] || 0) + finalSum;
 }
-
+  
+  // Функция для добавления окна с группировкой одинаковых
+  function addWindowExtra(price, caption, qty, skipMarkup = false) {
+    if (!price || price <= 0) return;
+    
+    // Извлекаем базовое название без количества (для группировки)
+    // Важно: группируем по полному названию (включая размер), чтобы окна с разными камерами не объединялись
+    const baseCaption = caption.replace(/\s*\(\d+\s*шт\)\s*$/, '').trim();
+    
+    // Если это окно ПВХ или деревянное окно - группируем
+    if (caption.includes('Окно ПВХ') || caption.includes('Окно деревянное')) {
+      if (!windowsGroup[baseCaption]) {
+        windowsGroup[baseCaption] = { qty: 0, pricePerUnit: price };
+      }
+      windowsGroup[baseCaption].qty += qty;
+      // Цена за единицу берем из первого добавления (они должны быть одинаковые)
+    } else {
+      // Для других элементов (двери и т.д.) добавляем как обычно
+      addExtra(price * qty, `${caption}`, skipMarkup);
+    }
+}
   /* --- ЭКОНОМ-ЛИНЕЙКА: упрощенные доп. опции --- */
   if (isEconomy) {
     // Для эконом-линейки используем фиксированные цены по размерам
@@ -2369,7 +3168,7 @@ function addExtra(sum, label, skipMarkup = false){
             const total = price * qty;
             // Убираем цену из optionText для КП
             const cleanOptionText = optionText.replace(/ — \d+[\s,]*\d*₽/, '');
-            addExtra(total, `Перегородка ${materialText.toLowerCase()} ${cleanOptionText} (${qty} шт)`, true);
+            addExtra(total, `Стена ${materialText.toLowerCase()} ${cleanOptionText} (${qty} шт)`, true);
           }
         }
       });
@@ -2392,9 +3191,14 @@ function addExtra(sum, label, skipMarkup = false){
         /* ---------- ОКНА ---------- */
         case "pvcWin": {                        // окно ПВХ
           price   = ECONOMY_WINDOWS[code][cam];
-          caption = `Окно ПВХ ${code}`;
-          if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
-          pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ в «Комплектацию»
+          // Включаем информацию о камерах в caption для правильной группировки
+          const camText = cam === '1' ? '1-кам.' : cam === '2' ? '2-кам.' : '';
+          caption = `Окно ПВХ ${code}${camText ? ' ' + camText : ''}`;
+          if (price) {
+            addWindowExtra(price, caption, qty, true);
+          pvcWindowLines.push(`– ${caption} (${qty} шт)`); // Копим, вставим позже рядом с дверями
+          }
+          pvcWindowsAdded = true;
           break;
         }
 
@@ -2406,10 +3210,10 @@ function addExtra(sum, label, skipMarkup = false){
         if (code === baseWinSize) {
           baseWinQty += qty;
         } else {
-          pkg.push(`– ${caption} (${qty} шт)`);
+          pushPkg(`– ${caption} (${qty} шт)`);
         }
 
-        if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
+        if (price) addWindowExtra(price, caption, qty, true);
         break;
       }
 
@@ -2418,7 +3222,7 @@ function addExtra(sum, label, skipMarkup = false){
           price   = ECONOMY_WINDOWS[code][2] || ECONOMY_WINDOWS[code][1];
           caption = `Дверь ПВХ ${code}`;
           if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
-          pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
+          pushPkg(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
           break;
         }
 
@@ -2434,7 +3238,7 @@ function addExtra(sum, label, skipMarkup = false){
         if (code === "wooden_set") {          // базовая «наборная»
           baseDoorQty += qty;
         } else {
-          pkg.push(`– ${caption} (${qty} шт)`);
+          pushPkg(`– ${caption} (${qty} шт)`);
         }
 
         if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
@@ -2443,14 +3247,22 @@ function addExtra(sum, label, skipMarkup = false){
 
         case "metalDoor": {                     // дверь металлическая
           price   = ECONOMY_METAL_PRICES[code];
-          caption = "Дверь металлическая РФ";
+          caption = "Дверь металлическая Тула";
           if (price) addExtra(price * qty, `${caption} (${qty} шт)`, true);
-          pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
+          pushPkg(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
           break;
         }
       }
       });
     }
+    
+    // Объединяем одинаковые окна для эконом-линейки и добавляем в extraMap
+    Object.entries(windowsGroup).forEach(([baseCaption, data]) => {
+      const totalPrice = data.pricePerUnit * data.qty;
+      const finalSum = grossInt(totalPrice);
+      extras += finalSum;
+      extraMap[`${baseCaption} (${data.qty} шт)`] = finalSum;
+    });
     
     // Прочее
     if (document.getElementById('chkSteps')?.checked) {
@@ -2487,14 +3299,13 @@ function addExtra(sum, label, skipMarkup = false){
     }
     
     // Пандус (если выбрано)
-    if (chkRamp.checked) addExtra(RAMP, "Пандус");
+    if (chkRamp && chkRamp.checked) addExtra(RAMP, "Пандус");
     
     // Сетка «анти-мышь» для эконом-линейки
     if (chkMouse.checked) addExtra(FLOOR.mouse * warmArea, "Сетка «анти-мышь»");
     
     // Для эконом-линейки пропускаем обычную логику доп. опций
 }
-
   /* --- 1. Утепление (если > базового) --- */
   // --- 1. Утепление (считаем только для бытовки и дома) ---
 if (!isEconomy && selType.value !== "hoblok" && selInsul.value !== "none") {
@@ -2505,9 +3316,21 @@ const diff = INSUL[selInsul.value] - baseInsulPrice;
 }
 
 
-  /* --- 2. Кровля (цветной/металлочерепица) --- */
-  if (!isEconomy && selRoofMat.value !== "galv" && selRoofMat.value !== "ondulin") {
-    addExtra(ROOFMAT[selRoofMat.value] * warmArea, getLabel(selRoofMat.selectedOptions[0]));
+  /* --- 2. Кровля (цветной/металлочерепица/ондулин) --- */
+  if (!isEconomy && selRoofMat.value !== "galv") {
+    let roofLabel = getLabel(selRoofMat.selectedOptions[0]);
+    // Добавляем выбранный цвет для всех материалов кроме оцинкованного
+    if (selectedProfColor) {
+      const materialNames = {
+        'profColor': 'Цветной профлист',
+        'ondulin': 'Ондулин',
+        'tile_lom': 'Металлочерепица (односкатная крыша)',
+        'tile_gable': 'Металлочерепица (двускатная крыша)'
+      };
+      const baseName = materialNames[selRoofMat.value] || roofLabel.split('(')[0].trim();
+      roofLabel = `${baseName} ${selectedProfColor.name} (${selectedProfColor.code})`;
+    }
+    addExtra(ROOFMAT[selRoofMat.value] * warmArea, roofLabel);
   }
 
   /* --- 3. Доплата за двускатную крышу для хозблоков/бытовок --- */
@@ -2548,8 +3371,7 @@ if (extraH > 0) {
   const totalArea = w * l; // общая площадь без вычета веранды
   const addH  = steps * pricePer10cm(totalArea);
   addExtra(addH, `Высота +${extraH} см`);
-    heightNote = `– Высота увеличена на ${extraH} см`;
-  }
+  // heightNote больше не используется - объединяем с основной строкой высоты
 }
 
 // Сетка «анти-мышь» будет обработана позже в блоке дополнительных опций
@@ -2580,10 +3402,12 @@ if (extraH > 0) {
       const dim = selSvaiType.value;
       
       // Рассчитываем количество свай по новой логике (с учетом веранды)
+      // Используем vw (ширина веранды) из функции calculate()
       let verandaWidthForPiles = 0;
-      if (type === 'house' && verWidth && verWidth.value && !isInsideVer) {
-        verandaWidthForPiles = parseFloat(verWidth.value) || 0;
-      } else if ((type === 'hoblok' || type === 'bytovka') && selVeranda && selVeranda.value) {
+      if (type === 'house' && vw > 0 && !isInsideVer) {
+        // Для каркасного дома: веранда увеличивает ширину строения
+        verandaWidthForPiles = vw;
+      } else if ((type === 'hoblok' || type === 'bytovka') && selectedVeranda) {
         // Для хозблоков/бытовок с верандой из прайса - веранда уже учтена в размерах
         verandaWidthForPiles = 0;
       }
@@ -2592,26 +3416,6 @@ if (extraH > 0) {
       
       // Базовая цена за сваю (БЕЗ наценки)
       const pricePerPile = PILES_STANDARD[dim];
-      
-      // Определяем, нужна ли отдельная бригада
-      let needsSeparateTeam = false;
-      let separateTeamReason = "";
-      
-      if (dim === "1.5×76") {
-        if (cnt >= 17) {
-          needsSeparateTeam = true;
-          separateTeamReason = "76/1500 от 17 шт - отдельная бригада";
-        }
-      } else if (dim === "2.0×76") {
-        if (cnt >= 10) {
-          needsSeparateTeam = true;
-          separateTeamReason = "76/2000 от 10 шт - отдельная бригада";
-        }
-      } else {
-        // Все остальные типы (89, 108) - всегда отдельная бригада
-        needsSeparateTeam = true;
-        separateTeamReason = "Сваи 89/108 - отдельная бригада";
-      }
       
       // Рассчитываем цену
       let totalPrice;
@@ -2624,17 +3428,23 @@ if (extraH > 0) {
       // Добавляем в допы (без уведомления для клиента)
       addExtra(totalPrice, `Свайный фундамент ${dim} × ${cnt} шт`, true);
       
-      // Показываем всплывающее окно для менеджера при отдельной бригаде
-      if (needsSeparateTeam) {
-        setTimeout(() => {
-          alert(`⚠️ ВНИМАНИЕ ДЛЯ МЕНЕДЖЕРА!\n\nСваи ${dim} × ${cnt} шт требуют отдельной бригады.\n\nНе забудьте:\n• Оформить отдельный заказ на сваи\n• Рассчитать доставку: 60₽/км от Мытищ\n• Уведомить клиента о дополнительных расходах`);
-        }, 100);
-      }
+      // Проверяем и показываем модальное окно (если не отключено для веранды)
+      const showWarning = !window.__updatePilesWithoutWarning;
+      checkScrewPileBrigade(dim, cnt, showWarning);
+      
+      // Обновляем текст в выбранной опции селекта с актуальным количеством
+      updatePileSelectText(selSvaiType, dim, cnt, pricePerPile);
+      } else {
+      // Если сваи убраны, сбрасываем флаги
+      screwPileWarningShown = false;
+      lastPileType = null;
     }
   }
 
   /* --- 9. Пандус --- */
-if (!isEconomy && chkRamp.checked) addExtra(RAMP, "Пандус");
+if (!isEconomy && chkRamp && chkRamp.checked) {
+  addExtra(RAMP, "Пандус");
+}
 
   /* --- 10. Сетка «анти-мышь» для обычных линеек --- */
 if (!isEconomy && chkMouseNew.checked) {
@@ -2662,9 +3472,14 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
   /* ---------- ОКНА ---------- */
   case "pvcWin": {                        // окно ПВХ
     price   = WINDOWS[code][cam];
-    caption = `Окно ПВХ ${code}`;
-    if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
-    pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ в «Комплектацию»
+    // Включаем информацию о камерах в caption для правильной группировки
+    const camText = cam === '1' ? '1-кам.' : cam === '2' ? '2-кам.' : '';
+    caption = `Окно ПВХ ${code}${camText ? ' ' + camText : ''}`;
+    if (price) {
+      addWindowExtra(price, caption, qty);
+      pvcWindowLines.push(`– ${caption} (${qty} шт)`); // Копим для комплектации
+    }
+  pvcWindowsAdded = true;
     break;
   }
 
@@ -2676,10 +3491,10 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
   if (code === baseWinSize) {
     baseWinQty += qty;
   } else {
-    pkg.push(`– ${caption} (${qty} шт)`);
+    pushPkg(`– ${caption} (${qty} шт)`);
   }
 
-  if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
+  if (price) addWindowExtra(price, caption, qty);
   break;
 }
 
@@ -2688,7 +3503,7 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
     price   = WINDOWS[code][2] || WINDOWS[code][1];
     caption = `Дверь ПВХ ${code}`;
     if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
-    pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
+    pushPkg(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
     break;
   }
 
@@ -2701,7 +3516,7 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
   if (code === "std") {          // базовая «самонаборная»
     baseDoorQty += qty;
   } else {
-    pkg.push(`– ${caption} (${qty} шт)`);
+    pushPkg(`– ${caption} (${qty} шт)`);
   }
 
   if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
@@ -2712,15 +3527,23 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
     price   = METAL_PRICES[code];
     caption = { rf:"Дверь металлическая Тула",
                 rfThermo:"Дверь РФ (термо)",
-                thermoLux:"Термо Люкс" }[code];
+                thermoLux:"Дверь термолюкс" }[code];
     if (price) addExtra(price * qty, `${caption} (${qty} шт)`);
-    pkg.push(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
+    pushPkg(`– ${caption} (${qty} шт)`);        // ← ДОБАВЛЯЕМ
     break;
   }
 }
 
 });
 } // закрываем блок окон/дверей для !isEconomy
+
+  // Объединяем одинаковые окна и добавляем в extraMap
+  Object.entries(windowsGroup).forEach(([baseCaption, data]) => {
+    const totalPrice = data.pricePerUnit * data.qty;
+    const finalSum = grossInt(totalPrice);
+    extras += finalSum;
+    extraMap[`${baseCaption} (${data.qty} шт)`] = finalSum;
+  });
 
   /* ===== 8.4. Логика отделки (замена материала) ===== */
   
@@ -2771,7 +3594,6 @@ if (type === "hoblok") {
   addExtra(totalFinish, MATERIAL_NAME[intTgt]);   // 👉 одна строка в КП
   finalInt = intTgt;
 }
-
 } else {
   /* ── СТАРЫЙ код для дома и бытовки — без изменений ── */
   if (selInRep.value !== "none") {
@@ -2874,7 +3696,7 @@ let total = basePrice + del + extras;
 if (isEconomy) {
   total = Math.round(total / 50) * 50; // только округление к 50
 }
-const roofType = document.querySelector('input[name="roof"]:checked').value;
+const roofType = document.querySelector('input[name="roof"]:checked')?.value || "lom";
 // Формируем заголовок с учетом веранды из прайса
 let title;
 if (verandaFromPrice) {
@@ -2884,9 +3706,11 @@ if (verandaFromPrice) {
   const verandaSize = verandaFromPrice.veranda;
   title = `${selType.options[selType.selectedIndex].text} ${totalSize} (${mainSize} + веранда ${verandaSize}) — под ключ`;
 } else if (type === "house") {
-  title = `Каркасный дом с ${roofType === "lom" ? "ломаной" : "двускатной"} крышей ${w}×${l}${verTitle} — под ключ`;
+  title = `Каркасный дом ${roofType === "lom" ? "с низким скатом крыши" : "с двускатной крышей"} ${w}×${l}${verTitle} — под ключ`;
 } else {
-  title = `${selType.options[selType.selectedIndex].text} ${w}×${l}${verTitle} — под ключ`;
+  // Для бытовок и хозблоков добавляем информацию о типе крыши
+  const roofText = roofType === "gable" ? "с двускатной крышей" : "с односкатной крышей";
+  title = `${selType.options[selType.selectedIndex].text} ${roofText} ${w}×${l}${verTitle} — под ключ`;
 }
 
 
@@ -2894,53 +3718,51 @@ if (verandaFromPrice) {
 const lines = [
   `🏠 *${title}*`,
   ``,
-  `🏗️ *Комплектация:*`
+  `🏗️ *Комплектация:*`,
+  ``
 ];
-
 /* ===== 8.6. Комплектация (финальное состояние) ===== */
-
-if (heightNote) pkg.push(heightNote);
 
   // Специальная комплектация для эконом-линейки (по прайсу поставщика)
   if (isEconomy) {
     // 1) Тип строения
     const buildingType = type === 'hoblok_economy' ? 'Деревянный хозблок' : 'Деревянная бытовка';
-    pkg.push(`– Тип: ${buildingType}`);
+    pushPkg(`– Тип: ${buildingType}`);
     
     // 2) Размеры
-    pkg.push(`– Внешний размер: ${w}×${l} м`);
+    pushPkg(`– Внешний размер: ${w}×${l} м`);
     
     // 3) Планировка
-    pkg.push("– Планировка: 1 комната");
+    pushPkg("– Планировка: 1 комната");
     
     // 4) Высота потолка
-    pkg.push("– Высота потолка: 1,95×2,14 м");
+    pushPkg("– Высота потолка: 1,95×2,14 м");
     
     // 5) Каркас
-    pkg.push("– Обвязочный брус: 90×90 мм, обрезной, естественной влажности 25%");
-    pkg.push("– Каркас: 45×45 мм обрезной, естественной влажности");
+    pushPkg("– Обвязочный брус: 90×90 мм, обрезной, естественной влажности 25%");
+    pushPkg("– Каркас: 45×45 мм обрезной, естественной влажности");
     
     // 6) Внешняя отделка
-    pkg.push("– Внешняя отделка: вагонка категории С (небольшие дырки от сучков закрываем пеной)");
+    pushPkg("– Внешняя отделка: вагонка категории С (небольшие дырки от сучков закрываем пеной)");
     
     // 7) Внутренняя отделка (базовая по прайсу или замененная опцией)
     const interiorFinish = document.querySelector('input[name="interiorFinish"]:checked')?.value;
     
     if (type === 'hoblok_economy') {
       if (interiorFinish === 'osb') {
-        pkg.push("– Внутренняя отделка: ОСП-9");
+        pushPkg("– Внутренняя отделка: ОСП-9");
       } else if (interiorFinish === 'vagonka') {
-        pkg.push("– Внутренняя отделка: вагонка 'С'");
+        pushPkg("– Внутренняя отделка: вагонка 'С'");
       } else {
-        pkg.push("– Внутренняя отделка: нет");
+        pushPkg("– Внутренняя отделка: нет");
       }
     } else {
       if (interiorFinish === 'osb') {
-        pkg.push("– Внутренняя отделка: ОСП-9");
+        pushPkg("– Внутренняя отделка: ОСП-9");
       } else if (interiorFinish === 'vagonka') {
-        pkg.push("– Внутренняя отделка: вагонка 'С'");
+        pushPkg("– Внутренняя отделка: вагонка 'С'");
       } else {
-        pkg.push("– Внутренняя отделка: оргалит (ДВП) 0,35 мм");
+        pushPkg("– Внутренняя отделка: оргалит (ДВП) 0,35 мм");
       }
     }
     
@@ -2952,16 +3774,16 @@ if (heightNote) pkg.push(heightNote);
     } else if (roofType === 'gable_width') {
       roofText = "– Крыша: двускатная по ширине";
     }
-    pkg.push(roofText);
+    pushPkg(roofText);
     
     // 9) Кровля
-    pkg.push("– Кровля: профнастил оцинкованный С8");
+    pushPkg("– Кровля: профнастил оцинкованный С8");
     
     // 10) Пол
     if (type === 'bytovka_economy') {
-      pkg.push("– Пол: ветроизоляция, черновой (обрезная доска 2-го сорта 22 мм), чистовой (обрезная доска 2-го сорта 22 мм), ОСП-9");
+      pushPkg("– Пол: ветроизоляция, черновой (обрезная доска 2-го сорта 22 мм), чистовой (обрезная доска 2-го сорта 22 мм), ОСП-9");
     } else {
-      pkg.push("– Пол: обрезная доска 2-го сорта 22 мм");
+      pushPkg("– Пол: обрезная доска 2-го сорта 22 мм");
     }
     
     // 11) Утепление (только для бытовок эконом)
@@ -2969,45 +3791,45 @@ if (heightNote) pkg.push(heightNote);
       const hasInsulation100 = document.getElementById('chkInsulation100')?.checked;
       if (hasInsulation100) {
         // Если выбрано утепление 100 мм, заменяем базовое
-        pkg.push("– Утеплитель: 100 мм минвата, утеплены стены, пол, потолок");
+        pushPkg("– Утеплитель: 100 мм минеральная вата, утеплены стены, пол, потолок");
       } else {
         // Базовое утепление 50 мм
-        pkg.push("– Утеплитель: 50 мм минвата, утеплены стены, пол");
+        pushPkg("– Утеплитель: 50 мм минеральная вата, утеплены стены, пол");
       }
     } else if (type === 'hoblok_economy') {
       // Хозблоки эконом без утепления
-      pkg.push("– Утеплитель: нет");
+      pushPkg("– Утеплитель: нет");
     } else {
-      pkg.push("– Утеплитель: нет");
+      pushPkg("– Утеплитель: нет");
     }
     
     // 12) Окна и двери (базовые по прайсу)
-    pkg.push(`– Окна: ${baseWinQty} шт деревянное, размер ${baseWinSize}, открывается, одинарное`);
-    pkg.push(`– Дверь: ${baseDoorQty} шт деревянная наборная, обшита вагонкой С`);
+    pushPkg(`– Окна: ${baseWinQty} шт деревянное, размер ${baseWinSize}, открывается, одинарное`);
+    pushPkg(`– Дверь: ${baseDoorQty} шт деревянная наборная, обшита вагонкой С`);
     
     // 10) Дополнительные опции (если выбраны)
     if (document.getElementById('chkCeilingInsulation')?.checked) {
-      pkg.push("– Утепление потолка 50 мм");
+      pushPkg("– Утепление потолка 50 мм");
     }
     // Внутренняя отделка уже добавлена в базовую комплектацию выше
     // Утепление 100 мм уже добавлено в базовую комплектацию выше
     if (document.getElementById('chkFireProtectionFloor')?.checked) {
-      pkg.push("– Огнебиозащита пола");
+      pushPkg("– Огнебиозащита пола");
     }
     if (document.getElementById('chkFireProtectionFrame')?.checked) {
-      pkg.push("– Огнебиозащита каркаса");
+      pushPkg("– Огнебиозащита каркаса");
     }
     if (type === 'bytovka_economy' && document.getElementById('chkVaporBarrier')?.checked) {
-      pkg.push("– Паро- и ветроизоляция");
+      pushPkg("– Паро- и ветроизоляция");
     }
     if (document.getElementById('chkSteps')?.checked) {
-      pkg.push("– Ступени");
+      pushPkg("– Ступени");
     }
     if (document.getElementById('chkRamp75')?.checked) {
-      pkg.push("– Пандус 75 см");
+      pushPkg("– Пандус 75 см");
     }
     if (document.getElementById('chkRamp160')?.checked) {
-      pkg.push("– Пандус 160-180 см");
+      pushPkg("– Пандус 160-180 см");
     }
     
     // 11) Сваи для эконом-линейки (если выбраны)
@@ -3028,7 +3850,7 @@ if (heightNote) pkg.push(heightNote);
         const svaiPrice = prices[svaiType];
         if (svaiPrice) {
           const svaiTotal = svaiPrice * recommendation;
-          pkg.push(`– Сваи ${svaiType} (${recommendation} шт): ${formatPrice(svaiTotal)} ₽`);
+          pushPkg(`– Сваи ${svaiType} (${recommendation} шт): ${formatPrice(svaiTotal)} ₽`);
         }
       }
     }
@@ -3064,7 +3886,7 @@ if (heightNote) pkg.push(heightNote);
           
           if (price > 0) {
             const total = price * qty;
-            pkg.push(`– ${label} (${qty} шт): ${formatPrice(total)} ₽`);
+            pushPkg(`– ${label} (${qty} шт): ${formatPrice(total)} ₽`);
           }
         }
       });
@@ -3100,46 +3922,83 @@ if (heightNote) pkg.push(heightNote);
             const materialText = row.querySelector('.partition-material').selectedOptions[0].text;
             // Убираем цену из optionText для комплектации
             const cleanOptionText = optionText.replace(/ — \d+[\s,]*\d*₽/, '');
-            pkg.push(`– Перегородка ${materialText.toLowerCase()} ${cleanOptionText} (${qty} шт)`);
+            pushPkg(`– Стена ${materialText.toLowerCase()} ${cleanOptionText} (${qty} шт)`);
           }
         }
       });
     }
     
-    // Добавляем комплектацию для эконом-линейки в lines
-    pkg.forEach(l => lines.push((l.startsWith('–') ? l : '– ' + l) + "  "));
+    // Группируем комплектацию для эконом-линейки
+    const currentFormat = window.kpFormat || 'whatsapp';
+    const groupedPkg = groupKomplektatsiya(pkg, currentFormat);
+    groupedPkg.forEach(l => {
+      // Пустые строки и заголовки групп (начинающиеся с "•") оставляем как есть
+      if (l === '' || l.startsWith('•')) {
+        lines.push(l);
+      } else {
+        // Остальные элементы добавляем с префиксом "– " если его нет
+        let line = l.startsWith('–') ? l : '– ' + l;
+        lines.push(line);
+      }
+    });
     
 } else {
   // Обычная комплектация для стандартной линейки
 // 0) Каркас (фиксированная запись)
-pkg.push("– Каркас: брус 50×100 мм (1 сорт, хвойный)");
+pushPkg("– Каркас: брус 50×100 мм (1 сорт, хвойный)");
+pushPkg("– Полозья: 150×100 мм");
 
-// 1) Наружная отделка
-pkg.push(`– Наружная отделка: ${MATERIAL_NAME[finalExt]}`);
-
-// 2) Внутренняя отделка
-if (finalInt) {                               // покажем, только если что-то выбрано
-  pkg.push(`– Внутренняя отделка: ${MATERIAL_NAME[finalInt]}`);
+// 1) Отделка (объединённый блок)
+if (finalInt) {
+  // Если есть и наружная, и внутренняя — объединяем в один блок
+  pushPkg(`– Отделка`);
+  pushPkg(`  Наружная: ${MATERIAL_NAME[finalExt]}`);
+  pushPkg(`  Внутренняя: ${MATERIAL_NAME[finalInt]}`);
+} else {
+  // Если только наружная — выводим как раньше
+  pushPkg(`– Наружная отделка: ${MATERIAL_NAME[finalExt]}`);
 }
 
 
-// 3) Утепление
+// 3) Крыша (для бытовок и хозблоков)
+if (type !== "house") {
+  const roofText = roofType === "gable" ? "двускатная" : "односкатная";
+  pushPkg(`– Крыша: ${roofText}`);
+}
+
+// 4) Утепление
 if (type !== "hoblok") {
-  const label = (selInsul.value === "none")
-  ? (type === "bytovka"
-        ? "Мин. вата 50 мм + ❗️ветро-влагоизоляция❗️"
-        : "Мин. вата 100 мм + ❗️ветро-влагоизоляция❗️")
-  : getLabel(selInsul.selectedOptions[0]);
-  pkg.push(`– Утепление: ${label}`);
+  let label;
+  if (selInsul.value === "none") {
+    // Базовое утепление
+    label = (type === "bytovka"
+      ? "Минеральная вата 50 мм"
+      : "Минеральная вата 100 мм");
+  } else {
+    // Выбранное утепление
+    label = getLabel(selInsul.selectedOptions[0]);
+    // Убираем "+ ветро-влагоизоляция" если оно уже есть в label (на случай если менеджер вручную добавил)
+    label = label.replace(/\s*\+\s*ветро-?влагоизоляция/gi, '').trim();
+  }
+  // Ветро-влагоизоляция ВСЕГДА добавляется для всех строений кроме хозблоков
+  pushPkg(`– Утепление: ${label} + ветро-влагоизоляция`);
 }
-
-// 4) Кровля
-pkg.push(`– Кровля: ${getLabel(selRoofMat.selectedOptions[0])}`);
-
+// 5) Кровля
+  // Формируем название кровли с учетом выбранного цвета
+  let roofLabel = getLabel(selRoofMat.selectedOptions[0]);
+  if (selRoofMat.value !== 'galv' && selectedProfColor) {
+    const materialNames = {
+      'profColor': 'Цветной профлист',
+      'ondulin': 'Ондулин',
+      'tile_lom': 'Металлочерепица (односкатная крыша)',
+      'tile_gable': 'Металлочерепица (двускатная крыша)'
+    };
+    const baseName = materialNames[selRoofMat.value] || roofLabel.split('(')[0].trim();
+    roofLabel = `${baseName} ${selectedProfColor.name} (${selectedProfColor.code})`;
+  }
+  pushPkg(`– Кровля: ${roofLabel}`);
 // 5) Окна (деревянные по умолчанию) и двери базовые
 let hasUserWindow = false;                    // новое имя
-
-
 // -----------------------------------------------------------------
 
 windowsContainer.querySelectorAll(".window-row").forEach(row => {
@@ -3147,17 +4006,28 @@ windowsContainer.querySelectorAll(".window-row").forEach(row => {
   const kind = row.querySelector(".win-type").value;   // pvcWin | woodWin | …
   if (size && (kind === "pvcWin" || kind === "woodWin")) hasUserWindow = true;
 });
-
-// 6) Перегородка по центру (база для дома)
-if (type === "house") pkg.push("– Перегородка: по центру дома");
+// 6) Перегородка (база для дома) + возможное расширение
+let basePartitionLen = 0;     // базовая длина перегородки в метрах
+let extraPartitionLen = 0;    // доп. длина из выбора пользователя
+if (type === "house") {
+  const roof = document.querySelector('input[name=\"roof\"]:checked')?.value || 'gable';
+  // По ТЗ:
+  // - Низкий скат: перегородка вдоль большей стороны
+  // - Двускатная крыша: перегородка по меньшей стороне
+  basePartitionLen = (roof === 'lom') ? Math.max(w, l) : Math.min(w, l);
+}
 
 // 7) Доп-элементы пользователя
 if (vw > 0 && vd > 0){
-  pkg.push(`– Веранда: ${vw}×${vd} м (${isInsideVer ? 'внутренняя' : 'пристройка'})`);
+  pushPkg(`– Веранда: ${vw}×${vd} м (${isInsideVer ? 'внутренняя' : 'пристройка'})`);
 }
 const chkMouseNewKP = document.getElementById('chkMouseNew');
 if (!isEconomy && chkMouseNewKP && chkMouseNewKP.checked) {
-  pkg.push("– Сетка «анти-мышь»");
+  pushPkg("– Сетка «анти-мышь»");
+}
+// Пандус для обычной линейки
+if (!isEconomy && chkRamp && chkRamp.checked) {
+  pushPkg("– Пандус");
 }
 
 // Перегородки для стандартной линейки
@@ -3170,40 +4040,57 @@ if (!isEconomy) {
     const partLenKP = parseFloat(inpPartitionLengthKP.value) || 0;
     
     if (partTypeKP && partLenKP > 0) {
-      pkg.push(`– ${PART_TITLE[partTypeKP]} (${partLenKP} м)`);
+      // В КП не выводим отдельной строкой — суммируем с базовой
+      extraPartitionLen += partLenKP;
+      // Стоимость уже учтена ранее через addExtra, здесь только отображение
     }
   }
+}
+
+// Выводим единую строку по перегородкам (база + допы), если есть база или допы
+if ((basePartitionLen || extraPartitionLen) && type === 'house') {
+  const totalPartition = (basePartitionLen + extraPartitionLen);
+  const totalStr = Number.isInteger(totalPartition) ? String(totalPartition) : totalPartition.toFixed(1).replace('.', ',');
+  pushPkg(`– Стена внутренняя: ${totalStr} м`);
 }
 
 if (!isEconomy) {
   const selSvaiType = document.getElementById('selSvaiType');
   if (selSvaiType && selSvaiType.value) {
     // Рассчитываем количество свай по новой логике (с учетом веранды)
+    // Используем vw (ширина веранды) из функции calculate()
     let verandaWidthForPiles = 0;
-    if (type === 'house' && verWidth && verWidth.value && !isInsideVer) {
-      verandaWidthForPiles = parseFloat(verWidth.value) || 0;
+    if (type === 'house' && vw > 0 && !isInsideVer) {
+      // Для каркасного дома: веранда увеличивает ширину строения
+      verandaWidthForPiles = vw;
+    } else if ((type === 'hoblok' || type === 'bytovka') && selectedVeranda) {
+      // Для хозблоков/бытовок с верандой из прайса - веранда уже учтена в размерах
+      verandaWidthForPiles = 0;
     }
     const pileCnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVer);
     
-    // Определяем, нужна ли отдельная бригада для комплектации
-    let needsSeparateTeamForKit = false;
-    if (selSvaiType.value === "1.5×76" && pileCnt >= 17) {
-      needsSeparateTeamForKit = true;
-    } else if (selSvaiType.value === "2.0×76" && pileCnt >= 10) {
-      needsSeparateTeamForKit = true;
-    } else if (selSvaiType.value.includes("×89") || selSvaiType.value.includes("×108")) {
-      needsSeparateTeamForKit = true;
-    }
+    // НОВАЯ ЛОГИКА: Определяем, нужна ли отдельная бригада для комплектации
+    // Своими силами можем: до 12 свай включительно И только типы 1.5×76 или 2.0×76
+    // Отдельная бригада нужна: если > 12 свай ИЛИ тип не 1.5×76 и не 2.0×76
+    const isOwnTeamType = (selSvaiType.value === "1.5×76" || selSvaiType.value === "2.0×76");
+    const isOwnTeamCount = (pileCnt <= 12);
+    const needsSeparateTeamForKit = !isOwnTeamType || !isOwnTeamCount;
     
-    pkg.push(`– Свайный фундамент: ${selSvaiType.value} × ${pileCnt} шт`);
+    // Заменяем точку на запятую в размерах свай для правильного отображения (3.0 → 3,0)
+    const svaiDim = selSvaiType.value.replace(/\./g, ',');
+    pushPkg(`– Свайный фундамент: ${svaiDim} × ${pileCnt} шт`);
     
     if (needsSeparateTeamForKit) {
-      pkg.push(`  ⚠️ ВНИМАНИЕ: Монтаж свай выполняется отдельной бригадой`);
-      pkg.push(`  Доставка: 60₽/км от Мытищ (рассчитывается отдельно)`);
-      pkg.push(`  В стоимость входит: установка, оголовок 150×150, обварка, подсыпка пескобетоном`);
-    } else {
-      pkg.push(`  В стоимость входит: установка, оголовок 150×150, обварка, подсыпка пескобетоном`);
+      // Сохраняем предупреждения в importantNotes, а не в комплектацию
+      importantNotes.push('Монтаж свай выполняется отдельной бригадой');
+      importantNotes.push('Доставка: 60 ₽/км от Мытищ, считается индивидуально');
     }
+    
+    // Сохраняем для использования в PDF
+    window.__kpNeedsSeparateTeamForKit = needsSeparateTeamForKit;
+  } else {
+    // Если сваи не выбраны, отдельная бригада не нужна
+    window.__kpNeedsSeparateTeamForKit = false;
   }
 } else {
   // Для эконом-линейки используем отдельный селект
@@ -3214,38 +4101,103 @@ if (!isEconomy) {
     const sizeKey = `${w}x${l}`;
     const recommendation = CONFIG[type].svai.recommendations[sizeKey];
     if (recommendation) {
-      pkg.push(`– Свайный фундамент: ${selEconomySvaiType.value} × ${recommendation} шт`);
+      // Заменяем точку на запятую в размерах свай для правильного отображения (3.0 → 3,0)
+      const economySvaiDim = selEconomySvaiType.value.replace(/\./g, ',');
+      pushPkg(`– Свайный фундамент: ${economySvaiDim} × ${recommendation} шт`);
+      
+      // Для эконом-линейки сваи всегда требуют отдельной бригады
+      window.__kpNeedsSeparateTeamForKit = true;
+    } else {
+      window.__kpNeedsSeparateTeamForKit = false;
     }
+  } else {
+    window.__kpNeedsSeparateTeamForKit = false;
   }
 }
 
-pkg.push(`– Окно деревянное ${baseWinSize} (${baseWinQty} шт)`);
-pkg.push(`– ${baseDoorLabel} (${baseDoorQty} шт)`);
+// Базовые окна: показываем только если нигде не добавлены окна ПВХ
+if (!pvcWindowsAdded) {
+  pushPkg(`– Окно деревянное ${baseWinSize} (${baseWinQty} шт)`);
+} else {
+  // Если были выбраны ПВХ окна — выводим их тут, рядом с дверями
+  // Объединяем одинаковые окна
+  const windowsMap = {};
+  pvcWindowLines.forEach(line => {
+    // Извлекаем название окна без количества (например, "– Окно ПВХ 60×90 1-кам.")
+    const match = line.match(/^–\s*(.+?)\s*\((\d+)\s*шт\)/);
+    if (match) {
+      const windowName = match[1].trim();
+      const qty = parseInt(match[2]) || 1;
+      if (windowsMap[windowName]) {
+        windowsMap[windowName] += qty;
+      } else {
+        windowsMap[windowName] = qty;
+      }
+    } else {
+      // Если не удалось распарсить, добавляем как есть
+      pushPkg(line);
+    }
+  });
+  // Добавляем объединенные окна
+  Object.entries(windowsMap).forEach(([windowName, totalQty]) => {
+    pushPkg(`– ${windowName} (${totalQty} шт)`);
+  });
+}
+// Переформируем baseDoorLabel с правильным склонением на основе финального количества
+if (type === "house" && baseDoorLabel.includes("Самонаборн")) {
+  baseDoorLabel = baseDoorQty > 1 ? "Самонаборные двери" : "Самонаборная дверь";
+}
+pushPkg(`– ${baseDoorLabel} (${baseDoorQty} шт)`);
 
 /* ──────── НОВЫЙ БЛОК: материал пола ──────── */
-pkg.push("– " + FLOOR_CAPT[floorCode]);
+pushPkg("– " + FLOOR_CAPT[floorCode]);
 /* ──────────────────────────────────────────── */
 
 
 // 8) Высота помещения / потолка (учитываем extraH)
 const extraHcm = +inpExtraH.value || 0;               // прибавка в см
-const addM     = (extraHcm / 100).toFixed(2).replace('.', ','); // «0,10»
 
 let heightLine;
 if (type === "house") {
-  const base = roofType === "lom"
-    ? "от 2,1 м до 2,4 м"
-    : "2,4 м по всему периметру";
-  heightLine = extraHcm ? `${base} + ${addM} м` : base;
+  // Формируем строку с высотой в новом формате
+  const base = roofType === "lom" ? "2,1–2,4 м" : "2,4 м";
+  if (extraHcm > 0) {
+    heightLine = `${base} (+${extraHcm} см к стандарту)`;
+  } else {
+    heightLine = base;
+  }
 } else { // бытовка / хозблок
   const base = roofType === "gable" ? "2,4 м" : "2,10 м";
-  heightLine = extraHcm ? `${base} + ${addM} м` : base;
+  if (extraHcm > 0) {
+    heightLine = `${base} (+${extraHcm} см к стандарту)`;
+  } else {
+    heightLine = base;
+  }
 }
-pkg.push(`– Высота ${type==="house"?"помещения":"потолка"}: ${heightLine}`);
+// Формируем финальную строку через конкатенацию
+const heightPrefix = type === "house" ? "помещения" : "потолка";
+const finalHeightLine = "– Высота " + heightPrefix + ": " + heightLine;
+// Нормализуем финальную строку перед добавлением
+pushPkg(finalHeightLine);
 
 
-// — добавляем все пункты в основной массив —
-pkg.forEach(l => lines.push((l.startsWith('–') ? l : '– ' + l) + "  "));
+// — группируем и добавляем все пункты в основной массив —
+const currentFormat = window.kpFormat || 'whatsapp';
+const groupedPkg = groupKomplektatsiya(pkg, currentFormat);
+groupedPkg.forEach(l => {
+  // Пустые строки и заголовки групп (начинающиеся с "•") оставляем как есть
+  if (l === '' || l.startsWith('•')) {
+    lines.push(l);
+  } else {
+    // Остальные элементы добавляем с префиксом "– " если его нет
+    let line = l.startsWith('–') ? l : '– ' + l;
+    // Дополнительная нормализация (на случай если что-то пропустили)
+    line = line.replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, ' ');
+    line = line.replace(/[ \t]+/g, ' ');
+    line = line.replace(/ {2,}/g, ' ');
+    lines.push(line.trim());
+  }
+});
 } // закрываем else для isEconomy
 
 // ─── Площади: тёплая / веранда / общая ─────────────────────────
@@ -3264,64 +4216,120 @@ if (verArea > 0.01){
   );
 }
 lines.push(`– Общая площадь: ${totalSq} м²`);
-
-
 /* ─── Блок «Стоимость» ───────────────────────────────────────── */
-lines.push(
-  ``,
-  `💰 *Стоимость:*`
-);
+// В коротком режиме пропускаем детализацию стоимости
+if (!isShortKP) {
+  lines.push(
+    ``,
+    `💰 *Стоимость:*`
+  );
 
-lines.push(`– Базовая: ${formatPrice(basePrice)} ₽  `);
+  lines.push(`– Базовая: ${formatPrice(basePrice)} ₽  `);
 
-if (hasRoute) {
-  if (isEconomy) {
-    // Детальная информация о доставке для эконом-линейки
-    const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
-    const assembly = document.getElementById('chkAssembly')?.checked;
-    
-    let deliveryText = "";
-    if (deliveryType === 'manipulator') {
-      deliveryText = `Доставка манипулятором: ${formatPrice(del)} ₽`;
+  if (hasRoute) {
+    if (isEconomy) {
+      // Детальная информация о доставке для эконом-линейки
+      const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
+      const assembly = document.getElementById('chkAssembly')?.checked;
+      
+      let deliveryText = "";
+      if (deliveryType === 'manipulator') {
+        deliveryText = `Доставка манипулятором: ${formatPrice(del)} ₽`;
+      } else {
+        deliveryText = `Доставка комплектами: ${formatPrice(del)} ₽`;
+      }
+      
+      if (assembly && deliveryType !== 'kit') {
+        // Для газели сборка уже включена в базовую цену
+        deliveryText += `\n– Сборка на участке: ${formatPrice(Math.round(CONFIG[type].delivery.assembly * 1.1))} ₽`;
+      }
+      
+      lines.push(`– ${deliveryText}  `);
     } else {
-      deliveryText = `Доставка комплектами: ${formatPrice(del)} ₽`;
-    }
-    
-    if (assembly && deliveryType !== 'kit') {
-      // Для газели сборка уже включена в базовую цену
-      deliveryText += `\n– Сборка на участке: ${formatPrice(Math.round(CONFIG[type].delivery.assembly * 1.1))} ₽`;
-    }
-    
-    lines.push(`– ${deliveryText}  `);
-  } else {
-  lines.push(`– Доставка: ${formatPrice(del)} ₽  `);
-  }
-} else {
-  if (isEconomy) {
-    // Для эконом-линейки показываем точную сумму
     lines.push(`– Доставка: ${formatPrice(del)} ₽  `);
+    }
   } else {
-    // Для стандартной линейки показываем "от"
-  lines.push(`– Доставка: от ${formatPrice(del)} ₽  `);
+    if (isEconomy) {
+      // Для эконом-линейки показываем точную сумму
+      lines.push(`– Доставка: ${formatPrice(del)} ₽  `);
+    } else {
+      // Для стандартной линейки показываем "от"
+    lines.push(`– Доставка: от ${formatPrice(del)} ₽  `);
+    }
   }
-}
 
-  linesExtra = Object.entries(extraMap).map(([label, sum]) => {
-  // убираем «(1 шт)» из лейбла и вычисляем count
-  const cnt = +(label.match(/\((\d+) шт\)/)?.[1] || 0); 
-  const cleanLabel = label.replace(/\s*\(\d+ шт\)/, "");
-  const pcs = cnt > 0 ? ` (${cnt} шт)` : "";              // выводим только если надо
-  return `▪ ${cleanLabel}${pcs}: ${formatPrice(sum)} ₽`;
-});
+    linesExtra = Object.entries(extraMap).map(([label, sum]) => {
+    // убираем «(1 шт)» из лейбла и вычисляем count
+    const cnt = +(label.match(/\((\d+) шт\)/)?.[1] || 0); 
+    const cleanLabel = label.replace(/\s*\(\d+ шт\)/, "");
+    const pcs = cnt > 0 ? ` (${cnt} шт)` : "";              // выводим только если надо
+    return `▪ ${cleanLabel}${pcs}: ${formatPrice(sum)} ₽`;
+  });
 
-if (extras > 0) {
-  lines.push(`– Дополнительно: ${formatPrice(extras)} ₽  `);
-  lines.push(...linesExtra.map(l => ` ${l}`));
+  if (extras > 0) {
+    lines.push(`– Дополнительные опции: ${formatPrice(extras)} ₽  `);
+    
+    // Для полного КП показываем цены, для короткого — без цен
+    if (!isShortKP) {
+      // В полном КП: показываем каждый доп с ценой (без путей замены)
+      const currentIntName = (typeof finalInt !== 'undefined' && finalInt) ? MATERIAL_NAME[finalInt] : null;
+      const currentExtName = (typeof finalExt !== 'undefined' && finalExt) ? MATERIAL_NAME[finalExt] : null;
+      
+      Object.entries(extraMap).forEach(([label, sum]) => {
+        let name = String(label).trim();
+        // Если есть путь замены «A → B», оставляем правую часть (итоговый материал/опция)
+        if (name.includes('→')) {
+          const parts = name.split('→').map(s => s.trim());
+          name = parts[parts.length - 1] || name;
+        }
+        // Убираем только ХВОСТ цены в конце (после двоеточия или «—»), описание сохраняем
+        name = name.replace(/[:—]\s*\d[\d\s]*\s*₽\s*$/u, '').trim();
+        // Добавляем семантику для отделок, чтобы различать внутреннюю/наружную
+        if (currentIntName && name === currentIntName) {
+          name = `Внутренняя отделка — ${name}`;
+        } else if (currentExtName && name === currentExtName) {
+          name = `Наружная отделка — ${name}`;
+        }
+        // Выводим с ценой
+        lines.push(`– ${name}: ${formatPrice(sum)} ₽`);
+      });
+    } else {
+      // В коротком КП: список без цен
+      const currentIntName = (typeof finalInt !== 'undefined' && finalInt) ? MATERIAL_NAME[finalInt] : null;
+      const currentExtName = (typeof finalExt !== 'undefined' && finalExt) ? MATERIAL_NAME[finalExt] : null;
+      const linesExtraNames = Object.keys(extraMap).map((label) => {
+        let name = String(label).trim();
+        if (name.includes('→')) {
+          const parts = name.split('→').map(s => s.trim());
+          name = parts[parts.length - 1] || name;
+        }
+        name = name.replace(/[:—]\s*\d[\d\s]*\s*₽\s*$/u, '').trim();
+        if (currentIntName && name === currentIntName) {
+          name = `Внутренняя отделка — ${name}`;
+        } else if (currentExtName && name === currentExtName) {
+          name = `Наружная отделка — ${name}`;
+        }
+        return name;
+      }).filter(Boolean);
+      lines.push(...linesExtraNames.map(n => `– ${n}`));
+    }
+  }
 }
 lines.push(
   ``,
   `👉 *Итого: ${formatPrice(total)} ₽*`
 );
+
+// Блок "Важно:" с предупреждениями (сваи, доставка и т.д.)
+if (importantNotes.length > 0) {
+  lines.push(
+    ``,
+    `⚠️ *Важно:*`
+  );
+  importantNotes.forEach(note => {
+    lines.push(`– ${note}`);
+  });
+}
 
 /* ─── «Подарки», сроки ─────────────────────────────────────────── */
 const now = new Date();
@@ -3409,43 +4417,2073 @@ lines.push(
 );
 }
 // ---------- БЛОК «Почему мы» (адаптированный под тип) ----------
-if (isEconomy) {
-  // Текст для эконом-линейки
-  lines.push(
-    "",
-    "✅ *Почему мы — отличаемся от других:*",
-    "– Опыт более 10 лет, работают одни и те же бригады",
-    "– Дерево только хвойных пород, качественный каркас",
-    "– Каркас и доска — только 1 сорт, прочный и ровный",
-    "– Вагонка категории С, без синевы и гнили",
-    "– Цена ниже, чем у большинства, при хорошем качестве",
-    "– Гарантия на монтаж и материалы",
-    "– Быстрая сборка и доставка"
+// В коротком режиме пропускаем блок "Почему мы"
+if (!isShortKP) {
+  // Единый блок «Почему выбирают нас» для всех линеек
+    lines.push(
+      "",
+    "✅ *Почему выбирают нас*",
+    "• Опыт 10+ лет",
+    "• Постоянные бригады",
+    "• Хвойный лес, материалы 1 сорта",
+    "• Вагонка без синевы и гнили",
+    "• Утепление с паро- и ветрозащитой",
+    "• Цена ниже большинства",
+    "• Гарантия 2 года"
   );
-} else {
-  // Текст для стандартной линейки
-lines.push(
-  "",
-  "✅ *Почему мы — отличаемся от других:*",
-  "– Опыт более 10 лет, работают одни и те же бригады",
-  "– Дерево только хвойных пород, не используем осину",
-  "– Каркас и доска — только 1 сорт, прочный и ровный",
-  "– Вагонка без синевы и гнили, отбираем вручную",
-  "– Утепление с паро- и ветрозащитой — не экономим",
-  "– Цена ниже, чем у большинства, при лучшем качестве",
-  "– Гарантия на монтаж и материалы"
-);
 }
 // --------------------------------------------
 
+// Сохраняем массивы для использования в generatePDF
+// pkg и lines уже нормализованы через pushPkg и normalizeSpaces
+window.__kpPkg = pkg.slice();
+window.__kpLines = lines.slice();
 
-out.innerHTML = lines.join("\n");
+// Сохраняем оригинальный текст для сравнения с ручными правками
+const outElForSave = document.getElementById('out');
+if (outElForSave) {
+  window.__kpOriginalText = outElForSave.textContent || outElForSave.innerText || '';
+}
+
+  // КРИТИЧНО: Обновляем опции свай В САМОМ КОНЦЕ calculate(), после ВСЕХ расчетов
+  // Это гарантирует, что обновления не будут перезаписаны другими функциями
+  if (!isEconomy) {
+    const selSvaiType = document.getElementById('selSvaiType');
+    if (selSvaiType && selSvaiType.value) {
+      const dim = selSvaiType.value;
+      let verandaWidthForPiles = 0;
+      if (type === 'house' && vw > 0 && !isInsideVer) {
+        verandaWidthForPiles = vw;
+      } else if ((type === 'hoblok' || type === 'bytovka') && selectedVeranda) {
+        verandaWidthForPiles = 0;
+      }
+      const cnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVer);
+      const pricePerPile = PILES_STANDARD[dim];
+      if (pricePerPile) {
+        // Обновляем текст выбранной опции с актуальным количеством
+        updatePileSelectText(selSvaiType, dim, cnt, pricePerPile);
+        // Также обновляем все опции для консистентности
+        updateAllPileOptions(selSvaiType, verandaWidthForPiles, isInsideVer, l, w);
+      }
+    }
+  }
+// Допы: сохраняем список и сумму для рендера в PDF-блоке «Стоимость»
+window.__kpExtrasList = (typeof linesExtra !== 'undefined' && Array.isArray(linesExtra)) ? linesExtra.slice() : [];
+window.__kpExtrasSum = (typeof extras !== 'undefined') ? extras : 0;
+// Сохраняем переменные стоимости для PDF
+window.__kpBasePrice = (typeof basePrice !== 'undefined') ? basePrice : 0;
+window.__kpDelivery = (typeof del !== 'undefined') ? del : 0;
+window.__kpTotal = (typeof total !== 'undefined') ? total : 0;
+// Сохраняем формат доставки для PDF
+let deliveryTextForPDF = '';
+if (hasRoute) {
+  if (isEconomy) {
+    const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
+    if (deliveryType === 'manipulator') {
+      deliveryTextForPDF = `Доставка манипулятором: ${formatPrice(del)} ₽`;
+    } else {
+      deliveryTextForPDF = `Доставка комплектами: ${formatPrice(del)} ₽`;
+    }
+  } else {
+    deliveryTextForPDF = `Доставка: ${formatPrice(del)} ₽`;
+  }
+} else {
+  if (isEconomy) {
+    deliveryTextForPDF = `Доставка: ${formatPrice(del)} ₽`;
+  } else {
+    deliveryTextForPDF = `Доставка: от ${formatPrice(del)} ₽`;
+  }
+}
+window.__kpDeliveryText = deliveryTextForPDF;
+// Сохраняем список допов для PDF (в формате как в WhatsApp, но без "–" в начале)
+// ВСЕГДА сохраняем полный список для PDF, независимо от режима короткого/полного КП
+const extrasListForPDF = [];
+if (extras > 0) {
+  const currentIntName = (typeof finalInt !== 'undefined' && finalInt) ? MATERIAL_NAME[finalInt] : null;
+  const currentExtName = (typeof finalExt !== 'undefined' && finalExt) ? MATERIAL_NAME[finalExt] : null;
+  
+  Object.entries(extraMap).forEach(([label, sum]) => {
+    let name = String(label).trim();
+    // Если есть путь замены «A → B», оставляем правую часть
+    if (name.includes('→')) {
+      const parts = name.split('→').map(s => s.trim());
+      name = parts[parts.length - 1] || name;
+    }
+    // Убираем хвост цены в конце
+    name = name.replace(/[:—]\s*\d[\d\s]*\s*₽\s*$/u, '').trim();
+    // Унифицируем формат: заменяем ":" на "→" для единообразия
+    name = name.replace(/^([^:]+):\s*/, '$1 → ');
+    // Добавляем семантику для отделок
+    if (currentIntName && name === currentIntName) {
+      name = `Внутренняя отделка → ${name}`;
+    } else if (currentExtName && name === currentExtName) {
+      name = `Наружная отделка → ${name}`;
+    }
+    // Сохраняем в формате "Название — цена ₽" (длинное тире между названием и ценой)
+    extrasListForPDF.push(`${name} — ${formatPrice(sum)} ₽`);
+  });
+}
+window.__kpExtrasListForPDF = extrasListForPDF;
+// Важные заметки (сваи, доставка и т.д.) для блока "Важно:" в PDF
+window.__kpImportantNotes = (typeof importantNotes !== 'undefined' && Array.isArray(importantNotes)) ? importantNotes.slice() : [];
+
+// Убираем звёздочки для формата Авито (только для отображения, не для PDF)
+let displayLines = lines.slice();
+const currentFormat = window.kpFormat || 'whatsapp';
+if (currentFormat === 'avito') {
+  // Убираем звёздочки, которые используются для жирного текста в WhatsApp
+  displayLines = displayLines.map(line => {
+    // Убираем звёздочки вокруг текста: *текст* -> текст
+    return line.replace(/\*([^*]+)\*/g, '$1');
+  });
+}
+
+// Выводим текст с посимвольной подсветкой только для Авито (до 950 — зелёный, после — красный)
+const outText = displayLines.join("\n");
+const outEl = document.getElementById('out');
+if (outEl) {
+  // Функция экранирования HTML
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  // Подсветка только для формата Авито
+  if (currentFormat === 'avito') {
+    const limit = 950;
+    const len = outText.length;
+    
+    if (len <= limit) {
+      // Всё в пределах лимита — просто зелёный фон
+      // Заменяем \n на <br> для сохранения переносов строк
+      const escaped = escapeHtml(outText).replace(/\n/g, '<br>');
+      outEl.innerHTML = `<span class="avito-ok">${escaped}</span>`;
+    } else {
+      // Разделяем на две части: до лимита и после (посимвольно)
+      const okPart = outText.slice(0, limit);
+      const overPart = outText.slice(limit);
+      
+      // Заменяем \n на <br> для сохранения переносов строк
+      const escapedOk = escapeHtml(okPart).replace(/\n/g, '<br>');
+      const escapedOver = escapeHtml(overPart).replace(/\n/g, '<br>');
+      
+      outEl.innerHTML = `<span class="avito-ok">${escapedOk}</span><span class="avito-over">${escapedOver}</span>`;
+    }
+  } else {
+    // Для WhatsApp просто выводим текст без подсветки
+    const escaped = escapeHtml(outText).replace(/\n/g, '<br>');
+    outEl.innerHTML = escaped;
+  }
+}
+
 }
 
 /* ------------------------------------------------------------------
-   9. Умная система веранд
+   8.1. Экспорт КП в PDF (по ТЗ: обложка, характеристики, комплектация, стоимость, подарки)
 ------------------------------------------------------------------ */
 
+/**
+ * Функция пагинации контента по логическим блокам
+ * @param {Array} groups - Массив групп {title: string, items: Array<string>}
+ * @param {number} maxHeight - Максимальная высота страницы в пикселях
+ * @param {string} subtitleText - Текст подзаголовка для добавления на первую страницу
+ * @returns {Array<HTMLElement>} - Массив div-страниц
+ */
+function paginateContent(groups, maxHeight = 700, subtitleText = '') {
+  const pages = [];
+  let currentPage = null;
+  let currentPageInner = null;
+  let currentHeight = 0;
+  
+  // Создаем новую страницу
+  function createNewPage() {
+    currentPage = document.createElement('div');
+    currentPage.className = 'kp-page kp-page--inner';
+    currentPage.style.position = 'absolute';
+    currentPage.style.left = '-9999px';
+    currentPage.style.width = '210mm';
+    currentPage.style.minHeight = '297mm';
+    
+    currentPageInner = document.createElement('div');
+    currentPageInner.className = 'kp-page-inner pdf-container';
+    currentPage.appendChild(currentPageInner);
+    
+    currentHeight = 0;
+    pages.push(currentPage);
+  }
+  
+  // Измеряем высоту элемента
+  function measureHeight(element) {
+    const clone = element.cloneNode(true);
+    const container = document.createElement('div');
+    container.style.cssText = 'position: absolute; left: -9999px; visibility: hidden; width: 210mm; font-family: "Inter", sans-serif;';
+    container.appendChild(clone);
+    document.body.appendChild(container);
+    // Ждем немного для рендеринга
+    const height = clone.offsetHeight || 0;
+    document.body.removeChild(container);
+    return height;
+  }
+  
+  // Создаем группу с правильной структурой (как в старой верстке)
+  function createGroup(title, items) {
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'kp-spec-group';
+    
+    const titleEl = document.createElement('h3');
+    titleEl.className = 'kp-spec-group-title';
+    titleEl.textContent = title;
+    groupDiv.appendChild(titleEl);
+    
+    const ul = document.createElement('ul');
+    ul.className = 'kp-spec-list';
+    
+    items.forEach(item => {
+      const li = document.createElement('li');
+      // Убираем тире из начала, так как оно добавляется через list-style-type
+      let text = item.replace(/^[–-]\s*/, '').trim();
+      li.textContent = text;
+      ul.appendChild(li);
+    });
+    
+    groupDiv.appendChild(ul);
+    return groupDiv;
+  }
+  
+  // Обернуть комплектацию в page-section
+  function wrapInPageSection(content) {
+    const section = document.createElement('div');
+    section.className = 'page-section page-complectation';
+    if (content) {
+      if (typeof content === 'string') {
+        section.innerHTML = content;
+      } else {
+        section.appendChild(content);
+      }
+    }
+    return section;
+  }
+  
+  // Создаем контейнер для групп (kp-spec-groups) - теперь внутри .kp-spec-card
+  let groupsContainer = null;
+  let hasTitleOnPage = false; // Флаг: есть ли заголовок "КОМПЛЕКТАЦИЯ" на текущей странице
+  let komplektatsiyaCard = null; // Контейнер .kp-spec-card для всего блока (как в блоке стоимости)
+  
+  // Функция для создания/получения .kp-spec-card (структура как в блоке стоимости)
+  function getKomplektatsiyaCard() {
+    if (!komplektatsiyaCard) {
+      komplektatsiyaCard = document.createElement('div');
+      komplektatsiyaCard.className = 'kp-spec-card';
+      
+      const h2 = document.createElement('h2');
+      h2.className = 'kp-spec-title';
+      h2.textContent = 'КОМПЛЕКТАЦИЯ';
+      komplektatsiyaCard.appendChild(h2);
+      
+      if (subtitleText) {
+        const p = document.createElement('p');
+        p.className = 'kp-spec-subtitle';
+        p.textContent = subtitleText;
+        komplektatsiyaCard.appendChild(p);
+      }
+      
+      // Создаем контейнер для групп (как в блоке стоимости)
+      const groupsWrapper = document.createElement('div');
+      groupsWrapper.className = 'kp-spec-groups';
+      komplektatsiyaCard.appendChild(groupsWrapper);
+      groupsContainer = groupsWrapper;
+    }
+    return komplektatsiyaCard;
+  }
+  
+  // Функция для добавления заголовка на страницу
+  function addTitleToPage() {
+    if (hasTitleOnPage) return; // Уже есть заголовок
+    // Создаем .kp-spec-card с заголовком (структура как в блоке стоимости)
+    komplektatsiyaCard = getKomplektatsiyaCard();
+    hasTitleOnPage = true;
+    
+    // Измеряем высоту заголовка и добавляем к currentHeight
+    const titleHeight = measureHeight(komplektatsiyaCard);
+    currentHeight += titleHeight;
+  }
+  
+  // Обрабатываем каждую группу
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    const groupDiv = createGroup(group.title, group.items);
+    const groupHeight = measureHeight(groupDiv);
+    
+    // Проверяем, является ли это последней группой "Прочее" с 1-2 короткими строками
+    const isLastProchee = (i === groups.length - 1) && 
+                          (group.title === 'Прочее' || group.title.includes('Прочее')) &&
+                          group.items.length <= 2 &&
+                          group.items.every(item => item.length < 100); // Короткие строки
+    
+    // Убеждаемся, что страница создана перед обработкой группы
+    if (!currentPage || !currentPageInner) {
+      createNewPage();
+    }
+    
+    // Проверяем, помещается ли группа на текущую страницу
+    const wouldOverflow = currentPage !== null && currentHeight + groupHeight > maxHeight;
+    
+    // Если группа не влезает, но это последняя короткая "Прочее" - пробуем втиснуть на первую страницу
+    if (wouldOverflow && !isLastProchee) {
+      // Если был .kp-spec-card с группами, добавляем его на текущую страницу (обернутый в page-section, как в блоке стоимости)
+      if (komplektatsiyaCard && groupsContainer && groupsContainer.children.length > 0) {
+        const section = wrapInPageSection(komplektatsiyaCard);
+        currentPageInner.appendChild(section);
+      }
+      // Создаем новую страницу
+      createNewPage();
+      // Сбрасываем контейнеры для новой страницы
+      komplektatsiyaCard = null;
+      groupsContainer = null;
+      currentHeight = 0;
+      hasTitleOnPage = false; // Сбрасываем флаг для новой страницы
+      // Добавляем заголовок на новую страницу
+      addTitleToPage();
+    } else if (wouldOverflow && isLastProchee) {
+      // Если это последняя короткая "Прочее" и она не влезает - пробуем уменьшить maxHeight
+      // или просто добавляем на первую страницу (пусть будет немного переполнение)
+    }
+    
+    // Если это первая группа на странице, создаем .kp-spec-card с заголовком
+    if (!hasTitleOnPage) {
+      addTitleToPage();
+    }
+    
+    // Получаем контейнер для групп из .kp-spec-card
+    if (!groupsContainer && komplektatsiyaCard) {
+      groupsContainer = komplektatsiyaCard.querySelector('.kp-spec-groups');
+    }
+    
+    // Если контейнер еще не создан, создаем его (не должно происходить, но на всякий случай)
+    if (!groupsContainer) {
+      groupsContainer = document.createElement('div');
+      groupsContainer.className = 'kp-spec-groups';
+      if (komplektatsiyaCard) {
+        komplektatsiyaCard.appendChild(groupsContainer);
+      }
+    }
+    
+    // Добавляем группу в контейнер
+    groupsContainer.appendChild(groupDiv);
+    currentHeight += groupHeight;
+  }
+  
+  // Добавляем .kp-spec-card на страницу (обернутый в page-section, как в блоке стоимости)
+  if (komplektatsiyaCard && groupsContainer && groupsContainer.children.length > 0) {
+    // Обертываем в page-section для запрета переноса (как в блоке стоимости)
+    const section = wrapInPageSection(komplektatsiyaCard);
+    currentPageInner.appendChild(section);
+    
+    // Добавляем контакты внизу белой зоны на страницах комплектации
+    // На страницах комплектации белая зона ниже, используем меньшее отрицательное значение
+    const companyInfoDiv = document.createElement('div');
+    companyInfoDiv.className = 'company-info';
+    companyInfoDiv.style.position = 'absolute'; // Абсолютное позиционирование относительно currentPageInner
+    // Поднимаем контакты так же, как на последнем листе (относительно белой части)
+    // На последнем листе контакты подняты выше, здесь тоже поднимаем
+    companyInfoDiv.style.bottom = '30px'; // Поднимаем выше, как на последнем листе
+    companyInfoDiv.style.left = '40px'; // Отступ слева как у padding карточки
+    companyInfoDiv.style.right = '40px'; // Отступ справа как у padding карточки
+    companyInfoDiv.style.textAlign = 'center';
+    companyInfoDiv.style.borderTop = '1px solid #e5e7eb'; // Легкая разделительная линия
+    companyInfoDiv.style.paddingTop = '20px'; // Отступ сверху от линии
+    companyInfoDiv.style.paddingBottom = '0px'; // БЕЗ отступа снизу
+    companyInfoDiv.style.marginBottom = '0px'; // Без отступа снизу
+    companyInfoDiv.style.marginTop = '0px'; // Без отступа сверху
+    companyInfoDiv.style.backgroundColor = '#fff'; // Белый фон
+    companyInfoDiv.style.zIndex = '10'; // Поверх контента
+    companyInfoDiv.style.boxSizing = 'border-box'; // Чтобы padding учитывался
+    
+    const companyInfoText = document.createElement('div');
+    companyInfoText.style.fontSize = '13px';
+    companyInfoText.style.fontWeight = '400';
+    companyInfoText.style.color = '#8A8A8A'; // Серый цвет как у слоганов
+    companyInfoText.style.letterSpacing = '0.02em';
+    companyInfoText.style.lineHeight = '1';
+    companyInfoText.style.whiteSpace = 'nowrap';
+    companyInfoText.style.marginBottom = '0px';
+    companyInfoText.style.paddingBottom = '0px';
+    companyInfoText.style.marginTop = '0px';
+    companyInfoText.style.paddingTop = '0px';
+    companyInfoText.style.display = 'block';
+    companyInfoText.innerHTML = 'Конструктивные решения <span style="color: #8A8A8A; font-weight: 500;">+7 (495) 132-38-30</span> · <span style="color: #8A8A8A; font-weight: 500;">resdoma.ru</span>';
+    companyInfoDiv.appendChild(companyInfoText);
+    
+    // Делаем currentPageInner position: relative для абсолютного позиционирования контактов
+    currentPageInner.style.position = 'relative';
+    currentPageInner.appendChild(companyInfoDiv);
+  }
+  
+  // ФИНАЛЬНАЯ ПРОВЕРКА: Если на последней странице только короткая группа "Прочее" (1-2 строки),
+  // и есть более одной страницы - удаляем последнюю страницу и добавляем "Прочее" на предыдущую
+  if (pages.length > 1) {
+    const lastPage = pages[pages.length - 1];
+    const lastPageInner = lastPage.querySelector('.kp-page-inner');
+    if (lastPageInner) {
+      const lastPageGroups = lastPageInner.querySelectorAll('.kp-spec-group');
+      // Проверяем, есть ли только одна группа "Прочее" с 1-2 короткими строками
+      if (lastPageGroups.length === 1) {
+        const lastGroup = lastPageGroups[0];
+        const groupTitle = lastGroup.querySelector('.kp-spec-group-title')?.textContent || '';
+        const groupItems = lastGroup.querySelectorAll('.kp-spec-list li');
+        
+        const isShortProchee = (groupTitle === 'Прочее' || groupTitle.includes('Прочее')) &&
+                               groupItems.length <= 2 &&
+                               Array.from(groupItems).every(li => li.textContent.length < 100);
+        
+        if (isShortProchee) {
+          // Удаляем последнюю страницу из массива
+          pages.pop();
+          // Удаляем из DOM
+          if (lastPage.parentNode) {
+            lastPage.parentNode.removeChild(lastPage);
+          }
+          
+          // Добавляем группу на предыдущую страницу
+          const prevPage = pages[pages.length - 1];
+          const prevPageInner = prevPage.querySelector('.kp-page-inner');
+          if (prevPageInner) {
+            // Находим последний page-section и добавляем группу туда
+            const lastSection = prevPageInner.querySelector('.page-section:last-child');
+            if (lastSection) {
+              const groupsContainer = lastSection.querySelector('.kp-spec-groups');
+              if (groupsContainer) {
+                groupsContainer.appendChild(lastGroup.cloneNode(true));
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  return pages;
+}
+
+/**
+ * Создает контейнер для PDF страниц (скрытый)
+ */
+function createPDFContainer() {
+  let container = document.getElementById('pdfContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'pdfContainer';
+    container.style.cssText = 'display: none; position: absolute; left: -9999px;';
+    document.body.appendChild(container);
+  } else {
+    // Очищаем контейнер перед использованием
+    container.innerHTML = '';
+  }
+  return container;
+}
+
+
+async function generatePDF() {
+  // ВАЖНО: Проверяем, не запущена ли уже генерация PDF (защита от двойного вызова)
+  if (window.__pdfGenerating) {
+    console.warn('PDF уже генерируется, пропускаем повторный вызов');
+    return;
+  }
+  window.__pdfGenerating = true;
+  
+  // ВАЖНО: Очищаем pdfContainer перед использованием, чтобы избежать дублирования
+  const existingContainer = document.getElementById('pdfContainer');
+  if (existingContainer) {
+    existingContainer.innerHTML = '';
+  }
+  
+  // Проверяем, что КП сформировано
+  const outElement = document.getElementById("out");
+  if (!outElement || !outElement.textContent.trim()) {
+    alert("⚠️ Сначала рассчитайте КП!");
+    console.warn('КП не сформировано, выход из generatePDF');
+    window.__pdfGenerating = false;
+    return;
+  }
+  
+  // Определяем тип строения для выбора правильной иконки
+  const selType = document.getElementById("selType");
+  const buildingType = selType ? selType.value : "house"; // по умолчанию дом
+
+  // Показываем индикатор загрузки
+  const btnPDF = document.getElementById("btnPDF");
+  const originalText = btnPDF ? btnPDF.textContent : '';
+  if (btnPDF) {
+    btnPDF.disabled = true;
+    btnPDF.textContent = 'Генерация PDF...';
+  }
+
+  try {
+    // Проверяем, был ли #out отредактирован вручную
+    // Если да, парсим содержимое из #out, иначе используем сохраненные массивы
+    let kpPkg = window.__kpPkg || [];
+    let kpLines = window.__kpLines || [];
+    
+    // Получаем текущее текстовое содержимое из #out
+    const currentOutText = (outElement.textContent || outElement.innerText || '').trim();
+    const originalOutText = (window.__kpOriginalText || '').trim();
+    
+    // Проверяем, отличается ли содержимое #out от оригинального
+    // Если тексты не совпадают, значит были ручные правки
+    const isManuallyEdited = currentOutText !== originalOutText && currentOutText.length > 0;
+    
+    if (isManuallyEdited) {
+      // Парсим содержимое из #out - используем HTML для более точного парсинга
+      const outHtmlContent = outElement.innerHTML || '';
+      
+      // Создаем временный элемент для парсинга HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = outHtmlContent;
+      
+      // Получаем чистый текст, сохраняя структуру (переносы строк)
+      // Заменяем <br> на переносы строк
+      const htmlWithBreaks = outHtmlContent.replace(/<br\s*\/?>/gi, '\n');
+      tempDiv.innerHTML = htmlWithBreaks;
+      const plainText = tempDiv.textContent || tempDiv.innerText || '';
+      
+      // Разбиваем на строки, сохраняя структуру
+      const linesFromOut = plainText.split(/\n|\r\n?/).map(line => {
+        // Убираем лишние пробелы в начале и конце, но сохраняем внутренние пробелы
+        return line.trim();
+      }).filter(line => line.length > 0); // Убираем только полностью пустые строки
+      
+      // Пытаемся извлечь комплектацию (строки начинающиеся с "–", "-" или "•")
+      const pkgFromOut = linesFromOut.filter(line => {
+        const trimmed = line.trim();
+        return trimmed.startsWith('–') || trimmed.startsWith('-') || trimmed.startsWith('•');
+      }).map(line => {
+        // Убираем маркеры списка и лишние пробелы
+        return line.replace(/^[–\-•]\s*/, '').trim();
+      });
+      
+      // Используем распарсенные данные
+      kpLines = linesFromOut;
+      // Используем комплектацию из #out только если она найдена, иначе оставляем оригинальную
+      if (pkgFromOut.length > 0) {
+        kpPkg = pkgFromOut;
+      }
+    }
+    
+    // Функция для экранирования HTML - только экранирование, без нормализации пробелов
+    function escapeHtml(text) {
+      if (!text) return "";
+      let str = String(text);
+      // Только экранируем HTML символы, пробелы уже нормализованы
+      str = str.replace(/&/g, '&amp;');
+      str = str.replace(/</g, '&lt;');
+      str = str.replace(/>/g, '&gt;');
+      str = str.replace(/"/g, '&quot;');
+      str = str.replace(/'/g, '&#39;');
+      return str;
+    }
+    
+    // Упрощенная нормализация текста - используем единую функцию normalizeSpaces
+    function normalizeText(input) {
+      if (!input) return "";
+      let text = String(input);
+      
+      // 0. АГРЕССИВНАЯ предварительная очистка - убираем ВСЕ неразрывные пробелы и множественные пробелы
+      text = text.replace(/\u00A0/g, ' '); // неразрывные пробелы Unicode
+      text = text.replace(/&nbsp;/g, ' '); // HTML неразрывные пробелы
+      text = text.replace(/[\u2000-\u200B\u202F\u205F\u3000]/g, ' '); // другие виды пробелов
+      text = text.replace(/[ \t\r\n]+/g, ' '); // все пробелы, табы, переносы строк -> один пробел
+      text = text.replace(/ {2,}/g, ' '); // множественные пробелы -> один
+      
+      // 1. УБРАТЬ: звёздочки *, •, смайлы
+      text = text.replace(/\*/g, '');
+      text = text.replace(/•/g, '');
+      text = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gum, '');
+      
+      // 2. УБРАТЬ: пробелы перед знаками препинания (важно: Слово: вместо Слово :)
+      // НЕ трогаем скобки - они должны сохранять пробелы перед собой
+      text = text.replace(/\s+:/g, ':'); // пробел перед двоеточием
+      text = text.replace(/\s+,/g, ','); // пробел перед запятой
+      text = text.replace(/\s+\./g, '.'); // пробел перед точкой
+      
+      // 3. ЗАМЕНИТЬ: дефис "-" на длинное тире "—"
+      text = text.replace(/(\s|^)-(\s|$)/g, '$1—$2');
+      text = text.replace(/(\s|^)-/g, '$1—');
+      text = text.replace(/-(\s|$)/g, '—$1');
+      
+      // 4. ЗАМЕНИТЬ: "м2" → "м²"
+      text = text.replace(/м2/g, 'м²');
+      text = text.replace(/м\s*2/g, 'м²');
+      
+      // 5. После запятой должен быть пробел (если его нет), но НЕ для дробей типа 2,1
+      text = text.replace(/,([^\d\s])/g, ', $1');
+      
+      // 6. После двоеточия должен быть пробел (если его нет)
+      text = text.replace(/:(\S)/g, ': $1');
+      
+      // 7. ФИНАЛЬНАЯ агрессивная очистка всех видов пробелов
+      text = text.replace(/\u00A0/g, ' ');
+      text = text.replace(/&nbsp;/g, ' ');
+      text = text.replace(/[\u2000-\u200B\u202F\u205F\u3000]/g, ' ');
+      text = text.replace(/[ \t\r\n]+/g, ' ');
+      text = text.replace(/ {2,}/g, ' ');
+      
+      // 8. Убираем пробелы в начале и конце
+      return text.trim();
+    }
+    
+    // Защита заголовка от некрасивых переносов (висячие предлоги, тире)
+    function protectTitleLineBreaks(text) {
+      if (!text) return text;
+      // Не рвём конструкции с тире, типа "6×4 – ПОД КЛЮЧ"
+      text = text.replace(/\s–\s/g, '\u00A0–\u00A0');
+      // Простая защита коротких слов (1–2 буквы) от зависания в конце строки
+      text = text.replace(/\b([А-ЯЁа-яё]{1,2})\s+/g, (match, word) => {
+        return word + '\u00A0';
+      });
+      return text;
+    }
+    
+    // Чистка строки КП от вотсап-разметки и лишних пробелов (старая функция, используем normalizeText)
+    function cleanupKpLine(text) {
+      return normalizeText(text);
+    }
+    
+    // Форматирование чисел и валюты
+    function formatCurrency(amount) {
+      // Заменяем точку на пробел в числах
+      let formatted = amount.toString().replace(/\./g, ' ');
+      // Убираем лишние пробелы и добавляем неразрывный пробел перед ₽
+      formatted = formatted.replace(/\s+/g, ' ').trim();
+      return formatted;
+    }
+    
+    // Определяем тип строения для суммы подарков
+    const selType = document.getElementById("selType");
+    const buildingType = selType ? selType.value : '';
+    const isHouse = buildingType === 'house';
+    const giftsAmount = isHouse ? '50 000' : '15 000';
+    
+    // Получаем имя менеджера из localStorage
+    const managerName = localStorage.getItem('houseCalcUser') || '';
+    
+    // Парсим текст КП для извлечения данных (включая "Почему мы" для обложки)
+    let mainTitle = '';
+    let pochemuMy = [];
+    let currentSection = '';
+    let skipTitle = true;
+    
+    // Лёгкая типографика для русского текста:
+    // 1) короткие предлоги не висят на конце строки
+    // 2) тире не переезжает на новую строку
+    function fixRussianTypography(text) {
+      if (!text) return text;
+      // короткие предлоги: в, к, с, у, о, а, и
+      text = text.replace(/\b([ВвКкСсУуОоАаИи])\s+/g, '$1\u00A0');
+      // не даём браузеру разрывать строку перед/после тире
+      text = text.replace(/\s+–\s+/g, '\u00A0–\u00A0');
+      return text;
+    }
+    
+    for (let i = 0; i < kpLines.length; i++) {
+      const line = kpLines[i];
+      const trimmed = line.trim();
+      
+      // Извлекаем заголовок товара
+      if (trimmed.includes('под ключ') && (trimmed.includes('×') || trimmed.includes('x'))) {
+        let cleaned = normalizeText(trimmed).replace(/—/g, '–');
+        cleaned = fixRussianTypography(cleaned);
+        mainTitle = cleaned.toUpperCase();
+        skipTitle = false;
+        continue;
+      }
+      if (skipTitle) continue;
+      
+      if (!trimmed) continue;
+      
+      // Сначала чистим строку от форматирования
+      let clean = normalizeText(trimmed);
+      if (!clean) continue;
+      
+      const lower = clean.toLowerCase();
+      
+      // Определяем разделы
+      if (lower.includes('почему мы') || lower.includes('почему мы —') || lower.includes('почему выбирают нас')) {
+        currentSection = 'pochemuMy';
+        continue;
+      }
+      
+      // Собираем "Почему мы"
+      if (currentSection === 'pochemuMy' && (clean.startsWith('–') || clean.startsWith('-') || clean.startsWith('•'))) {
+        pochemuMy.push(clean.replace(/^[–\\-•]\\s*/, ''));
+      }
+    }
+    
+    if (!mainTitle) {
+      mainTitle = 'КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ';
+    }
+    
+    // ========== СТРАНИЦА 1: ОБЛОЖКА (ТЕМНАЯ ГРАФИТОВАЯ ШАПКА) ==========
+    // Внешний контейнер страницы
+    const coverPage = document.createElement('div');
+    coverPage.className = 'kp-page kp-page--cover';
+    coverPage.style.position = 'absolute';
+    coverPage.style.left = '-9999px';
+    coverPage.style.width = '210mm';
+    coverPage.style.height = '297mm';
+    
+    // Белая карточка внутри (для обложки - прозрачная, так как фон темный)
+    const coverInner = document.createElement('div');
+    coverInner.className = 'kp-page-inner';
+    coverInner.style.backgroundColor = 'transparent';
+    coverInner.style.borderRadius = '0';
+    coverInner.style.padding = '0'; // Padding уже на .kp-page--cover (60px)
+    
+    // Внутренний контент обложки
+    const coverContainer = document.createElement('div');
+    coverContainer.className = 'kp-cover';
+    
+    // Логотип и название компании - выровнены по левому краю
+    const logoSection = document.createElement('div');
+    logoSection.className = 'kp-cover-header';
+    
+    // Логотип - используем изображение из файла (с прозрачным фоном)
+    const logoBlock = document.createElement('div');
+    logoBlock.className = 'kp-logo-block';
+    
+    const logoContainer = document.createElement('div');
+    logoContainer.className = 'kp-logo-wrapper';
+    
+    // Пробуем загрузить логотип как base64 для надежности
+    let logoBase64 = null;
+    try {
+      // Пробуем загрузить через fetch
+      const logoResponse = await fetch('logo.png');
+      if (logoResponse.ok) {
+        const blob = await logoResponse.blob();
+        const reader = new FileReader();
+        logoBase64 = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch (e) {
+      // Используем fallback SVG
+    }
+    
+    const logoImg = document.createElement('img');
+    logoImg.className = 'kp-logo-img';
+    logoImg.alt = 'Конструктивные решения';
+    
+    // Пробуем сначала logo-clean.svg, потом logo.png
+    let logoLoaded = false;
+    try {
+      const logoCleanResponse = await fetch('logo-clean.svg');
+      if (logoCleanResponse.ok && logoCleanResponse.status === 200) {
+        const logoCleanBlob = await logoCleanResponse.blob();
+        const reader = new FileReader();
+        logoImg.src = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(logoCleanBlob);
+        });
+        logoLoaded = true;
+      } else {
+        // Если файл не найден (404), не загружаем
+        logoLoaded = false;
+      }
+    } catch (e) {
+      // logo-clean.svg не найден или ошибка загрузки, пробуем logo.png
+      logoLoaded = false;
+    }
+    if (!logoLoaded) {
+      if (logoBase64) {
+        logoImg.src = logoBase64;
+        // Убираем фильтр - используем прозрачный фон логотипа
+        logoLoaded = true;
+      } else {
+        // Fallback SVG если изображение не загрузилось
+        const logoSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      logoSvg.setAttribute('width', '22mm');
+      logoSvg.setAttribute('height', '22mm');
+      logoSvg.setAttribute('viewBox', '0 0 60 60');
+      logoSvg.style.display = 'block';
+      
+      const roof = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      roof.setAttribute('points', '30,5 50,25 10,25');
+      roof.setAttribute('fill', 'none');
+      roof.setAttribute('stroke', 'white');
+      roof.setAttribute('stroke-width', '2.5');
+      
+      const walls = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      walls.setAttribute('x', '10');
+      walls.setAttribute('y', '25');
+      walls.setAttribute('width', '40');
+      walls.setAttribute('height', '30');
+      walls.setAttribute('fill', 'none');
+      walls.setAttribute('stroke', 'white');
+      walls.setAttribute('stroke-width', '2.5');
+      
+      const window = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      window.setAttribute('x', '22');
+      window.setAttribute('y', '32');
+      window.setAttribute('width', '16');
+      window.setAttribute('height', '16');
+      window.setAttribute('fill', 'none');
+      window.setAttribute('stroke', 'white');
+      window.setAttribute('stroke-width', '2');
+      
+      const base = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      base.setAttribute('x1', '5');
+      base.setAttribute('y1', '55');
+      base.setAttribute('x2', '55');
+      base.setAttribute('y2', '55');
+      base.setAttribute('stroke', '#4ade80');
+      base.setAttribute('stroke-width', '3');
+      
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', '48');
+      circle.setAttribute('cy', '18');
+      circle.setAttribute('r', '4');
+      circle.setAttribute('fill', '#fbbf24');
+      
+      logoSvg.appendChild(roof);
+      logoSvg.appendChild(walls);
+      logoSvg.appendChild(window);
+      logoSvg.appendChild(base);
+      logoSvg.appendChild(circle);
+        logoContainer.appendChild(logoSvg);
+        logoImg.style.display = 'none'; // Скрываем img, если используем SVG
+      }
+    }
+    
+    if (logoLoaded) {
+      logoContainer.appendChild(logoImg);
+    }
+    
+    // Текст компании
+    const logoText = document.createElement('div');
+    logoText.className = 'kp-logo-text';
+
+    const companyName = document.createElement('div');
+    companyName.className = 'kp-company';
+    // Нормализуем текст, чтобы убрать возможные проблемы с пробелами
+    const companyText = normalizeText('Конструктивные решения');
+    companyName.textContent = companyText;
+    const companyTagline = document.createElement('div');
+    companyTagline.className = 'kp-company-sub';
+    // Используем правильный символ разделителя с правильным выравниванием
+    companyTagline.innerHTML = 'Домики <span style="display: inline-block; vertical-align: middle; line-height: 1; margin: 0 0.2em;">·</span> бытовки <span style="display: inline-block; vertical-align: middle; line-height: 1; margin: 0 0.2em;">·</span> хозблоки';
+    logoText.appendChild(companyName);
+    logoText.appendChild(companyTagline);
+    
+    logoBlock.appendChild(logoContainer);
+    logoBlock.appendChild(logoText);
+    logoSection.appendChild(logoBlock);
+    
+    // Основной контент обложки
+    const coverMain = document.createElement('main');
+    coverMain.className = 'kp-cover-main';
+    
+    // Очищаем заголовок от дублей и форматируем
+    let cleanTitle = normalizeText(mainTitle)
+      .replace(/С\s+ЛОМАНОЙ\s+КРЫШЕЙ/gi, '') // Убираем дубли
+      .replace(/\s+/g, ' ') // Убираем лишние пробелы
+      .trim();
+    
+    // Если нет "под ключ", добавляем
+    if (!cleanTitle.includes('ПОД КЛЮЧ') && !cleanTitle.includes('–')) {
+      cleanTitle = cleanTitle + ' – ПОД КЛЮЧ';
+    }
+    
+    // Финальная нормализация пробелов
+    cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim();
+    // Защищаем заголовок от кривых переносов (тире и короткие слова)
+    cleanTitle = protectTitleLineBreaks(cleanTitle);
+    const titleText = document.createElement('h1');
+    titleText.className = 'kp-title';
+    titleText.textContent = cleanTitle;
+    
+    // Подзаголовок - "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ" вместо "Строим как для себя — без экономии."
+    const subtitleText = document.createElement('div');
+    subtitleText.className = 'kp-subtitle';
+    subtitleText.textContent = 'КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ';
+    
+    coverMain.appendChild(titleText);
+    coverMain.appendChild(subtitleText);
+    
+    // Блок преимуществ на обложке - 4 пункта в 2 строки по 2 пункта
+    const benefitsTexts = [
+      'Сборка за 1 день',
+      'Без предоплаты',
+      'Материалы ГОСТ',
+      'Гарантия 2 года'
+    ];
+    
+    const benefitsBlock = document.createElement('div');
+    benefitsBlock.className = 'kp-benefits';
+    
+    // Создаем контейнер для расположения в 2 колонки
+    const benefitsContainer = document.createElement('div');
+    benefitsContainer.className = 'kp-benefits-grid';
+    
+    // Создаем две колонки
+    const column1 = document.createElement('div');
+    column1.className = 'kp-benefits-column';
+    const column2 = document.createElement('div');
+    column2.className = 'kp-benefits-column';
+    
+    // Распределяем пункты по колонкам (первые 2 в первую, последние 2 во вторую)
+    benefitsTexts.forEach((txt, index) => {
+      const item = document.createElement('div');
+      item.className = 'kp-benefit-item';
+      
+      // Желтая галочка
+      const checkmark = document.createElement('span');
+      checkmark.className = 'kp-benefit-checkmark';
+      checkmark.innerHTML = '✓';
+      
+      // Текст
+      const text = document.createElement('span');
+      text.className = 'kp-benefit-text';
+      text.textContent = txt;
+      
+      item.appendChild(checkmark);
+      item.appendChild(text);
+      
+      // Первые 2 пункта в первую колонку, последние 2 во вторую
+      if (index < 2) {
+        column1.appendChild(item);
+      } else {
+        column2.appendChild(item);
+      }
+    });
+    
+    benefitsContainer.appendChild(column1);
+    benefitsContainer.appendChild(column2);
+    
+    benefitsBlock.appendChild(benefitsContainer);
+    coverMain.appendChild(benefitsBlock);
+    
+    // Контур домика на титульной странице
+    // Выбираем изображение и модификатор класса в зависимости от типа строения и крыши
+    const roofTypeCover = (document.querySelector('input[name="roof"]:checked')?.value) || '';
+    let houseImage;
+    let coverHouseModifierClass;
+
+    if (buildingType === 'house') {
+      if (roofTypeCover === 'lom') {
+        // дом с низким скатом (эталонный вариант)
+        houseImage = './nskat.png';
+        coverHouseModifierClass = 'cover-house--nskat';
+      } else {
+        // дом с двускатной крышей
+        houseImage = './house.png';
+        coverHouseModifierClass = 'cover-house--house';
+      }
+    } else {
+      // хозблок / бытовка
+      if (roofTypeCover === 'gable') {
+        // бытовка / хозблок с двускатной крышей
+        houseImage = './dbytovka.png';
+        coverHouseModifierClass = 'cover-house--dbytovka';
+      } else {
+        // бытовка / хозблок с односкатной крышей
+      houseImage = './bytovka.png';
+      coverHouseModifierClass = 'cover-house--bytovka';
+      }
+    }
+
+    const coverHouse = document.createElement('div');
+    coverHouse.className = `cover-house ${coverHouseModifierClass}`;
+    coverHouse.style.backgroundImage = `url("${houseImage}")`;
+
+    coverMain.appendChild(coverHouse);
+    
+    // Простой блок с менеджером, телефоном и сайтом на титульнике
+    const coverFooter = document.createElement('footer');
+    coverFooter.className = 'kp-cover-footer';
+    
+    const managerDiv = document.createElement('div');
+    managerDiv.className = 'kp-manager';
+    
+    // Получаем имя менеджера из localStorage (если не передано)
+    const finalManagerName = managerName || localStorage.getItem('houseCalcUser') || '';
+    let managerLabel = finalManagerName;
+    if (managerLabel) {
+      managerLabel = managerLabel.charAt(0).toUpperCase() + managerLabel.slice(1);
+    }
+    // Только менеджер, телефон и сайт на титульнике
+    // Используем правильные разделители с выравниванием
+    const separator = '<span style="display: inline-block; vertical-align: middle; line-height: 1; margin: 0 0.3em; color: #e5e7eb;">·</span>';
+    const siteHtml = '<span class="kp-manager-site">resdoma.ru</span>';
+    const managerText = managerLabel 
+      ? `Ваш менеджер: ${managerLabel} ${separator} +7 (495) 132-38-30 ${separator} ${siteHtml}`
+      : `+7 (495) 132-38-30 ${separator} ${siteHtml}`;
+    
+    // Явно устанавливаем стили для видимости ПЕРЕД установкой содержимого
+    managerDiv.style.color = '#e5e7eb';
+    managerDiv.style.display = 'block';
+    managerDiv.style.visibility = 'visible';
+    managerDiv.style.fontSize = '13px';
+    managerDiv.style.textAlign = 'center';
+    managerDiv.style.marginTop = '0';
+    managerDiv.style.marginBottom = '0';
+    
+    managerDiv.innerHTML = managerText;
+    
+    coverFooter.appendChild(managerDiv);
+    
+    // Собираем обложку
+    coverContainer.appendChild(logoSection);
+    coverContainer.appendChild(coverMain);
+    coverContainer.appendChild(coverFooter); // Футер внутри coverContainer, чтобы был частью flex-контейнера
+    coverInner.appendChild(coverContainer);
+    coverPage.appendChild(coverInner);
+    
+    // Создаем корневой контейнер для всех страниц
+    const kpRoot = document.createElement('div');
+    kpRoot.id = 'kp-root';
+    kpRoot.className = 'pdf-root';
+    kpRoot.style.position = 'absolute';
+    kpRoot.style.left = '-9999px';
+    kpRoot.style.backgroundColor = '#E5E7EB';
+    kpRoot.style.fontFamily = '"Inter", sans-serif';
+    kpRoot.style.color = '#111827';
+    
+    // Добавляем обложку в корневой контейнер
+    kpRoot.appendChild(coverPage);
+    
+    // Создаем PDF
+    // Проверяем доступность jsPDF (версия 2.5.1 использует UMD формат)
+    // Ждем загрузки библиотеки, если она еще не загружена
+    let attempts = 0;
+    let jsPDF;
+    
+    while (!jsPDF && attempts < 20) {
+      // Проверяем все возможные варианты доступа к jsPDF
+      if (typeof window !== 'undefined') {
+        // Вариант 1: window.jspdf.jsPDF (UMD формат версии 2.5.1)
+        if (window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF === 'function') {
+          jsPDF = window.jspdf.jsPDF;
+          break;
+        }
+        // Вариант 2: window.jsPDF (прямой доступ)
+        if (window.jsPDF && typeof window.jsPDF === 'function') {
+          jsPDF = window.jsPDF;
+          break;
+        }
+        // Вариант 3: window.jspdf (если это сам конструктор)
+        if (typeof window.jspdf === 'function') {
+          jsPDF = window.jspdf;
+          break;
+        }
+        // Вариант 4: проверяем все свойства window.jspdf
+        if (window.jspdf && typeof window.jspdf === 'object') {
+          for (const key in window.jspdf) {
+            if (key.toLowerCase().includes('pdf') && typeof window.jspdf[key] === 'function') {
+              jsPDF = window.jspdf[key];
+              break;
+            }
+          }
+          if (jsPDF) break;
+        }
+      }
+      
+      // Если не найдено, ждем немного и пробуем снова
+      if (!jsPDF && attempts < 19) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      attempts++;
+    }
+    
+    if (!jsPDF) {
+      // Последняя попытка - пробуем найти через eval (если библиотека загружена, но не экспортирована правильно)
+      try {
+        if (typeof eval('jspdf') !== 'undefined') {
+          const evalJsPDF = eval('jspdf');
+          if (evalJsPDF && evalJsPDF.jsPDF) {
+            jsPDF = evalJsPDF.jsPDF;
+          }
+        }
+      } catch(e) {
+        // eval не помог
+      }
+      
+      if (!jsPDF) {
+        console.error('jsPDF не найден после всех попыток. Проверьте подключение скрипта jspdf.umd.min.js в index.html. Обновите страницу (Ctrl+F5)');
+        throw new Error('Библиотека jsPDF не загружена. Проверьте подключение скрипта jspdf.umd.min.js в index.html. Обновите страницу (Ctrl+F5)');
+      }
+    }
+    
+    
+    // Проверяем html2canvas
+    if (typeof html2canvas === 'undefined') {
+      console.error('html2canvas не найден!');
+      throw new Error('Библиотека html2canvas не загружена. Проверьте подключение скрипта html2canvas.min.js в index.html. Обновите страницу (Ctrl+F5)');
+    }
+    
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+    
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    
+    // Создаем контейнер для контента
+    const contentContainer = document.createElement('div');
+    contentContainer.className = 'kp-page kp-page-main';
+    
+    // Используем сохраненный массив pkg напрямую для комплектации
+    // kpPkg уже нормализован через pushPkg
+    // Применяем группировку (для PDF формат не важен, используем whatsapp)
+    const groupedPkg = groupKomplektatsiya(kpPkg, 'whatsapp');
+    let komplektatsiya = groupedPkg.map(item => {
+      // Убираем тире в начале, если есть
+      return item.replace(/^[–-]\s*/, '');
+    });
+    // Парсим остальные данные из КП
+    let ploshchad = [];
+    let gabarity = '';
+    let vysota = '';
+    let fundament = '';
+    let uteplenie = '';
+    let krovlya = '';
+    let oknaDveri = [];
+    let stoimost = [];
+    let podarki = [];
+    let usloviya = [];
+    // pochemuMy уже объявлен выше, не переобъявляем
+    let totalPrice = '';
+    // currentSection и skipTitle уже объявлены выше, не переобъявляем
+    // Сбрасываем для нового парсинга
+    currentSection = '';
+    skipTitle = true;
+    
+    for (let i = 0; i < kpLines.length; i++) {
+      const line = kpLines[i];
+      const trimmed = line.trim();
+      
+      // Пропускаем заголовок товара
+      if (trimmed.includes('под ключ') && (trimmed.includes('×') || trimmed.includes('x'))) {
+        skipTitle = false;
+        continue;
+      }
+      if (skipTitle) continue;
+      
+      if (!trimmed) {
+        // Пустая строка может означать конец раздела, но не сбрасываем currentSection
+        continue;
+      }
+      
+      // Сначала чистим строку от форматирования
+      let clean = normalizeText(trimmed);
+      if (!clean) continue;
+      
+      const lower = clean.toLowerCase();
+      
+      // Определяем разделы (проверяем заголовки разделов)
+      if (lower.includes('комплектация') && !lower.includes('–')) {
+        currentSection = 'komplektatsiya';
+        continue;
+      }
+      if (lower.includes('площадь') && !lower.includes('–')) {
+        currentSection = 'ploshchad';
+        continue;
+      }
+      if (lower.includes('стоимость') && !lower.includes('–')) {
+        currentSection = 'stoimost';
+        continue;
+      }
+      if (lower.includes('подарки') && !lower.includes('–')) {
+        currentSection = 'podarki';
+        continue;
+      }
+      if (lower.includes('почему мы') || lower.includes('почему мы —')) {
+        currentSection = 'pochemuMy';
+        continue;
+      }
+      if (lower.includes('срок изготовления') || 
+          lower.includes('без предоплаты') ||
+          lower.includes('работаем с') ||
+          (lower.includes('гарантия') && !lower.includes('–'))) {
+        if (currentSection !== 'pochemuMy') {
+          currentSection = 'usloviya';
+        }
+      }
+      
+      // Собираем данные по разделам (комплектация уже взята из kpPkg, пропускаем)
+      if (currentSection === 'komplektatsiya' && (clean.startsWith('–') || clean.startsWith('-'))) {
+        // Пропускаем - комплектация уже взята из kpPkg, не парсим из lines
+      } else if (currentSection === 'ploshchad' && (clean.startsWith('–') || clean.startsWith('-'))) {
+        ploshchad.push(clean.replace(/^[–-]\s*/, ''));
+        // Извлекаем габариты из заголовка
+        const sizeMatch = mainTitle.match(/(\d+[×x]\d+)/);
+        if (sizeMatch) {
+          gabarity = sizeMatch[1];
+        }
+      } else if (currentSection === 'stoimost') {
+        if (lower.includes('итого')) {
+          totalPrice = clean.replace(/👉/g, '').trim();
+        } else if (clean.startsWith('–') || clean.startsWith('-')) {
+          stoimost.push(clean.replace(/^[–-]\s*/, ''));
+        }
+      } else if (currentSection === 'podarki' && (clean.startsWith('–') || clean.startsWith('-'))) {
+        podarki.push(clean.replace(/^[–-]\s*/, ''));
+      } else if (currentSection === 'usloviya') {
+        if (!lower.includes('предложение действительно')) {
+          usloviya.push(clean);
+        }
+      } else if (currentSection === 'pochemuMy' && (clean.startsWith('–') || clean.startsWith('-'))) {
+        pochemuMy.push(clean.replace(/^[–-]\s*/, ''));
+      }
+      
+      // Извлекаем специфичные данные из комплектации (для кратких характеристик)
+      if (currentSection === 'komplektatsiya' || !currentSection) {
+        if (clean.includes('Высота') || clean.includes('высота')) {
+          vysota = clean.replace(/^[–-]\s*/, '');
+        }
+        if (clean.includes('фундамент') || clean.includes('Фундамент') || clean.includes('Свайный') || clean.includes('свайный')) {
+          fundament = clean.replace(/^[–-]\s*/, '');
+        }
+        if (clean.includes('Утепление') || clean.includes('утепление') || clean.includes('Мин. вата') || clean.includes('минеральная вата') || clean.includes('минвата')) {
+          uteplenie = clean.replace(/^[–-]\s*/, '');
+        }
+        if (clean.includes('Кровля') || clean.includes('кровля') || clean.includes('Профнастил') || clean.includes('профнастил') || clean.includes('Цветной профлист')) {
+          krovlya = clean.replace(/^[–-]\s*/, '');
+        }
+        if (clean.includes('Окно') || clean.includes('Дверь') || clean.includes('окно') || clean.includes('дверь')) {
+          oknaDveri.push(clean.replace(/^[–-]\s*/, ''));
+        }
+      }
+    }
+    
+    // Оптимизируем текст "ПОЧЕМУ МЫ" для PDF - убираем дубли и ограничиваем до 8 пунктов
+    if (pochemuMy.length > 0) {
+      // Убираем дубли
+      pochemuMy = Array.from(new Set(pochemuMy));
+      // Ограничиваем до 8 пунктов
+      const MAX_BENEFITS = 8;
+      pochemuMy = pochemuMy.slice(0, MAX_BENEFITS);
+    }
+    
+    // Простая функция-заглушка, которая просто возвращает текст без изменений
+    function fixPrepositions(text) {
+      return text; // Тексты выводятся ровно как в данных
+    }
+    // Формируем HTML контента согласно ТЗ
+    let contentHtml = '';
+    
+    // Функция выделения ключевых фраз жирным
+    function emphasize(text) {
+      if (!text) return '';
+      let t = String(text);
+      t = t.replace(/\b1\s*сорт\b/gi, '<strong>1 сорт</strong>');
+      t = t.replace(/\bОСБ\s*влагостойкая\b/gi, '<strong>ОСБ влагостойкая</strong>');
+      t = t.replace(/\bМинеральная\s+вата\s*100\s*мм\b/gi, '<strong>Минеральная вата 100 мм</strong>');
+      t = t.replace(/\bМинеральная\s+вата\s*50\s*мм\b/gi, '<strong>Минеральная вата 50 мм</strong>');
+      t = t.replace(/ветро-?влагоизоляция/gi, '<strong>ветро-влагоизоляция</strong>');
+      // 80×80 — 3 шт.
+      t = t.replace(/(\d+\s*[×x]\s*\d+\s*—\s*\d+\s*шт\.?)/gi, '<strong>$1</strong>');
+      // Диапазон высот 2,1–2,4 м
+      t = t.replace(/(\d+[\.,]\d+\s*[–-]\s*\d+[\.,]\d+\s*м)/gi, '<strong>$1</strong>');
+      return t;
+    }
+    
+    // 1. КОМПЛЕКТАЦИЯ (разбита на группы) - используем уже сгруппированные данные
+    // Парсим группы для использования в paginateContent
+    let komplektatsiyaGroups = [];
+    if (komplektatsiya.length > 0) {
+      // Парсим уже сгруппированные данные (заголовки групп начинаются с "•")
+      let currentGroup = null;
+      let currentItems = [];
+      
+      komplektatsiya.forEach(item => {
+        const trimmed = item.trim();
+        // Заголовок группы (начинается с "•" и может содержать звездочки для жирного)
+        if (trimmed.startsWith('•')) {
+          // Сохраняем предыдущую группу (убираем дубли перед сохранением)
+          if (currentGroup) {
+            // Убираем дубли из элементов группы
+            const uniqueItems = [];
+            const seenItems = new Set();
+            currentItems.forEach(item => {
+              // Нормализуем для сравнения (убираем тире, лишние пробелы)
+              const normalized = item.replace(/^[–-]\s*/, '').trim().toLowerCase();
+              if (!seenItems.has(normalized)) {
+                seenItems.add(normalized);
+                uniqueItems.push(item);
+              }
+            });
+            komplektatsiyaGroups.push({ title: currentGroup, items: uniqueItems });
+          }
+          // Извлекаем название группы (убираем "•" и звездочки)
+          currentGroup = trimmed.replace(/^•\s*\*?/, '').replace(/\*$/, '').trim();
+          currentItems = [];
+        } else if (trimmed) {
+          // Элемент группы
+          currentItems.push(trimmed);
+        }
+      });
+      // Сохраняем последнюю группу (убираем дубли перед сохранением)
+      if (currentGroup) {
+        // Убираем дубли из элементов группы
+        const uniqueItems = [];
+        const seenItems = new Set();
+        currentItems.forEach(item => {
+          // Нормализуем для сравнения (убираем тире, лишние пробелы)
+          const normalized = item.replace(/^[–-]\s*/, '').trim().toLowerCase();
+          if (!seenItems.has(normalized)) {
+            seenItems.add(normalized);
+            uniqueItems.push(item);
+          }
+        });
+        komplektatsiyaGroups.push({ title: currentGroup, items: uniqueItems });
+      }
+      
+      // Подготовим вспомогательные значения для подписи: размер + родительный падеж типа
+      let summarySize = '';
+      const m = mainTitle.match(/(\d+)[×x](\d+)/);
+      if (m) {
+        summarySize = `${m[1]}×${m[2]} м`;
+      }
+      let productNameGenitive = '';
+      if (buildingType === 'house') productNameGenitive = 'Каркасного дома';
+      else if (buildingType === 'bytovka') productNameGenitive = 'Бытовки';
+      else if (buildingType === 'hoblok') productNameGenitive = 'Хозблока';
+      // По ТЗ: всегда пишем фиксированный текст
+      const subtitleText = 'Строим как для себя — без экономии.';
+
+      // НОВЫЙ ПОДХОД: Используем paginateContent для создания страниц комплектации
+      // Создаем контейнер для PDF (если еще не создан)
+      let pdfContainer = document.getElementById('pdfContainer');
+      if (!pdfContainer) {
+        pdfContainer = createPDFContainer();
+      }
+      
+      // Создаем страницы комплектации через paginateContent
+      // Заголовок "КОМПЛЕКТАЦИЯ" добавляется автоматически внутри paginateContent на каждую страницу
+      const komplektatsiyaPages = paginateContent(komplektatsiyaGroups, 700, subtitleText);
+      
+      // Добавляем все страницы комплектации в контейнер
+      komplektatsiyaPages.forEach(page => {
+        pdfContainer.appendChild(page);
+      });
+      
+    }
+    
+      // 4. СТОИМОСТЬ (используем тот же стиль карточки, что и комплектация)
+      const basePrice = window.__kpBasePrice || 0;
+      const delivery = window.__kpDelivery || 0;
+      const extrasSum = window.__kpExtrasSum || 0;
+      const total = window.__kpTotal || 0;
+      const deliveryText = window.__kpDeliveryText || '';
+      const extrasListForPDF = window.__kpExtrasListForPDF || [];
+          
+      // Функция для форматирования цены для PDF (используем formatPrice, затем заменяем точки на пробелы)
+      function formatPriceForPDF(price) {
+        // Используем глобальную функцию formatPrice, которая добавляет точки как разделители тысяч
+        let formatted = formatPrice(price);
+        // Заменяем точки на пробелы
+        formatted = formatted.replace(/\./g, ' ');
+        return formatted;
+          }
+          
+      if (basePrice > 0 || total > 0) {
+        contentHtml += '<div class="kp-spec-card">';
+        contentHtml += '<h2 class="kp-spec-title">СТОИМОСТЬ</h2>';
+      
+        // Обертка для блока стоимости (как kp-spec-groups в комплектации)
+        contentHtml += '<div class="kp-spec-groups">';
+        
+        // Блок краткой стоимости (как группа в комплектации)
+        contentHtml += '<div class="kp-spec-group">';
+        let basePriceFormatted = formatPriceForPDF(basePrice);
+        let deliveryFormatted = '';
+        if (deliveryText) {
+          // Извлекаем число из текста доставки и форматируем
+          const deliveryMatch = deliveryText.match(/(\d[\d\s.]*)/);
+          if (deliveryMatch) {
+            const deliveryNum = parseInt(deliveryMatch[1].replace(/[^\d]/g, ''), 10);
+            const formattedDeliveryNum = formatPriceForPDF(deliveryNum);
+            // Заменяем число в тексте на отформатированное
+            deliveryFormatted = deliveryText.replace(/(\d[\d\s.]*)/, formattedDeliveryNum);
+          } else {
+            deliveryFormatted = deliveryText;
+          }
+          // Заменяем точки на пробелы и форматируем ₽ (используем реальный неразрывный пробел)
+          deliveryFormatted = deliveryFormatted.replace(/(\d+)\.(\d+)/g, '$1 $2');
+          deliveryFormatted = deliveryFormatted.replace(/\s+₽/g, '\u00A0₽');
+          deliveryFormatted = deliveryFormatted.replace(/(\d+)\s+(\d+)\s*₽/g, '$1\u00A0$2\u00A0₽');
+        }
+        let extrasFormatted = formatPriceForPDF(extrasSum);
+        let totalFormatted = formatPriceForPDF(total);
+
+        // Используем список как в комплектации для единообразия
+        contentHtml += '<ul class="kp-spec-list">';
+        contentHtml += `<li>Базовая: ${basePriceFormatted}\u00A0₽</li>`;
+        if (deliveryText) {
+          contentHtml += `<li>${escapeHtml(deliveryFormatted)}</li>`;
+    }
+        if (extrasSum > 0) {
+          contentHtml += `<li>Дополнительные опции: ${extrasFormatted}\u00A0₽</li>`;
+        }
+        contentHtml += '</ul>';
+        // ИТОГО - отдельная строка с увеличенным шрифтом и пояснением
+        contentHtml += `<div style="margin-top: 12px; font-size: 15px; font-weight: 700; line-height: 1.35; color: #222426;">ИТОГО: ${totalFormatted}\u00A0₽</div>`;
+        contentHtml += `<div style="margin-top: 4px; font-size: 11px; font-weight: 400; line-height: 1.35; color: #6b7280; font-style: italic;">с учётом всех выбранных материалов и опций</div>`;
+        contentHtml += '</div>'; // закрываем kp-spec-group
+        
+        // Блок расшифровки допов (если есть) - как отдельная группа
+        if (extrasListForPDF.length > 0) {
+          contentHtml += '<div class="kp-spec-group">';
+          contentHtml += '<div class="kp-spec-group-title" style="margin-top: 14px; font-weight: 600;">Дополнительно:</div>';
+          // Используем таблицу для выравнивания цен по правому краю
+          contentHtml += '<div style="margin-top: 4px;">';
+          extrasListForPDF.forEach(extraLine => {
+            let txt = extraLine;
+            // Заменяем короткое тире "-" на длинное "—" перед ценой (если есть)
+            txt = txt.replace(/\s+-\s+(\d)/g, ' — $1');
+            // Форматируем валюту в допах (заменяем точки на пробелы, добавляем неразрывный пробел перед ₽)
+            // formatPrice уже использован при сохранении, просто заменяем точки на пробелы
+            txt = txt.replace(/\./g, ' ');
+            txt = txt.replace(/\s+₽/g, '\u00A0₽');
+            txt = txt.replace(/(\d+)\s+(\d+)\s*₽/g, '$1\u00A0$2\u00A0₽');
+            
+            // Разделяем название и цену для выравнивания
+            const parts = txt.split(' — ');
+            if (parts.length === 2) {
+              const name = parts[0].replace(/^[–-]\s*/, '').trim();
+              const price = parts[1];
+              // Улучшенная читаемость: min-width для текста слева, отступ между названием и суммой
+              contentHtml += `<div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; line-height: 1.35; margin-bottom: 2px; color: #222426;">`;
+              contentHtml += `<span style="flex: 1; min-width: 0; padding-right: 16px;">– ${escapeHtml(name)}</span>`;
+              contentHtml += `<span style="flex-shrink: 0; text-align: right; white-space: nowrap; font-weight: 500;">${escapeHtml(price)}</span>`;
+              contentHtml += `</div>`;
+            } else {
+              // Если формат не соответствует ожидаемому, выводим как есть
+              contentHtml += `<div style="font-size: 13px; line-height: 1.35; margin-bottom: 2px; color: #222426;">– ${escapeHtml(txt)}</div>`;
+            }
+          });
+          contentHtml += '</div>';
+          contentHtml += '</div>'; // закрываем kp-spec-group
+        }
+        
+        contentHtml += '</div>'; // закрываем kp-spec-groups
+        contentHtml += '</div>'; // закрываем kp-spec-card
+      }
+    
+      // 5. ПОДАРКИ (оранжевая карточка, отступ сверху как между группами на комплектации)
+      if (podarki.length > 0) {
+        const giftsSum = isHouse ? '50 000' : '15 000';
+        // Отступ сверху от блока стоимости (как между группами на комплектации - 16px)
+        // Используем классы kp-gifts и gifts-box для применения градиента
+        contentHtml += '<div class="kp-gifts gifts-box" style="margin-top: 16px;">';
+        // Заголовок с правильными отступами (padding уже есть в CSS, не добавляем margin-top)
+        contentHtml += `<div style="font-size: 18px; font-weight: 700; line-height: 1.4; margin: 0 0 8px 0; color: white; text-transform: uppercase; letter-spacing: normal !important; word-spacing: normal !important;">ПОДАРКИ НА СУММУ ${giftsSum}\u00A0₽</div>`;
+        // Эмоциональная фраза с правильным отступом
+        contentHtml += `<div style="font-size: 14px; font-weight: 500; line-height: 1.5; margin: 0 0 16px 0; color: white; opacity: 0.95;">Эти бонусы вы получаете автоматически — бесплатно.</div>`;
+        
+        // Список подарков с правильными отступами
+        podarki.forEach((item, index) => {
+          const normalized = normalizeText(item);
+          const fixedItem = fixPrepositions(normalized);
+          // Последний элемент без отступа снизу, остальные с отступом
+          const marginBottom = index === podarki.length - 1 ? '0' : '4px';
+          contentHtml += `<div style="font-size: 16px; margin: 0 0 ${marginBottom} 0; line-height: 1.55; color: white; letter-spacing: normal !important; word-spacing: normal !important; text-align: left;">– ${escapeHtml(fixedItem)}</div>`;
+        });
+        
+        contentHtml += '</div>';
+      }
+    
+    // Блок "УСЛОВИЯ + ПОЧЕМУ МЫ" вынесен в отдельную страницу (см. ниже после основного контента)
+    
+    // Разбиваем контент на логические блоки для контроля переноса
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.width = '210mm';
+    tempDiv.style.padding = '25mm 20mm';
+    tempDiv.style.boxSizing = 'border-box';
+    tempDiv.style.fontFamily = '"Inter", sans-serif';
+    tempDiv.innerHTML = contentHtml;
+    document.body.appendChild(tempDiv);
+    
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Находим блоки по классам и структуре
+    // Комплектация - ищем div с заголовком "КОМПЛЕКТАЦИЯ"
+    let komplektatsiyaDiv = null;
+    const allDivs = tempDiv.querySelectorAll('div');
+    for (let div of allDivs) {
+      if (div.textContent && div.textContent.includes('КОМПЛЕКТАЦИЯ')) {
+        // Находим родительский div, который содержит весь блок комплектации
+        komplektatsiyaDiv = div.parentElement;
+        // Если родитель не содержит весь блок, используем сам div
+        if (!komplektatsiyaDiv || komplektatsiyaDiv === tempDiv) {
+          komplektatsiyaDiv = div;
+          // Ищем следующий родительский div, который содержит весь блок
+          let parent = div.parentElement;
+          while (parent && parent !== tempDiv) {
+            if (parent.querySelector('.kp-spec-card h2.kp-spec-title') || parent.querySelector('.kp-gifts')) {
+              break;
+            }
+            komplektatsiyaDiv = parent;
+            parent = parent.parentElement;
+          }
+        }
+        break;
+      }
+    }
+    
+    // Если не нашли через поиск, берем первый div с контентом до блоков стоимости
+    if (!komplektatsiyaDiv) {
+      const firstDiv = tempDiv.querySelector('div');
+      if (firstDiv && !firstDiv.querySelector('.kp-spec-card h2.kp-spec-title') && !firstDiv.querySelector('.kp-gifts')) {
+        komplektatsiyaDiv = firstDiv;
+      }
+    }
+    
+    // Ищем блок стоимости (теперь использует kp-spec-card с заголовком СТОИМОСТЬ)
+    const stoimostDiv = Array.from(tempDiv.querySelectorAll('.kp-spec-card')).find(card => 
+      card.querySelector('h2.kp-spec-title') && card.querySelector('h2.kp-spec-title').textContent.includes('СТОИМОСТЬ')
+    );
+    const podarkiDiv = tempDiv.querySelector('.kp-gifts');
+    
+    // Вычисляем высоты блоков
+    const stoimostHeight = stoimostDiv ? stoimostDiv.offsetHeight : 0;
+    const podarkiHeight = podarkiDiv ? podarkiDiv.offsetHeight : 0;
+    
+    // НОВЫЙ ПОДХОД: Комплектация уже создана через paginateContent и добавлена в pdfContainer
+    // Добавляем страницы комплектации из pdfContainer в kpRoot
+    const pdfContainer = document.getElementById('pdfContainer');
+    if (pdfContainer) {
+      const komplektatsiyaPages = pdfContainer.querySelectorAll('.kp-page');
+      komplektatsiyaPages.forEach(page => {
+        kpRoot.appendChild(page.cloneNode(true));
+      });
+    }
+    
+    // Комплектация создается через paginateContent выше
+    
+    // Добавляем блоки Стоимость и Подарки на ОДНУ страницу (каждая в page-section)
+    if (stoimostDiv || podarkiDiv) {
+      // Создаем ОДНУ страницу для стоимости и подарков
+      const costGiftsPage = document.createElement('div');
+      costGiftsPage.className = 'kp-page kp-page--inner';
+      costGiftsPage.style.position = 'absolute';
+      costGiftsPage.style.left = '-9999px';
+      costGiftsPage.style.width = '210mm';
+      costGiftsPage.style.minHeight = '297mm';
+      
+      const costGiftsPageInner = document.createElement('div');
+      costGiftsPageInner.className = 'kp-page-inner pdf-container';
+      costGiftsPage.appendChild(costGiftsPageInner);
+      
+      // Блок Стоимость - обертываем в page-section
+    if (stoimostDiv && stoimostHeight > 0) {
+        const stoimostSection = document.createElement('div');
+        stoimostSection.className = 'page-section page-price';
+        stoimostSection.appendChild(stoimostDiv.cloneNode(true));
+        costGiftsPageInner.appendChild(stoimostSection);
+      }
+      
+      // Блок Подарки - обертываем в page-section (идет после стоимости)
+    if (podarkiDiv && podarkiHeight > 0) {
+        const podarkiSection = document.createElement('div');
+        podarkiSection.className = 'page-section page-gifts';
+        podarkiSection.appendChild(podarkiDiv.cloneNode(true));
+        costGiftsPageInner.appendChild(podarkiSection);
+      }
+      
+      // Добавляем контакты внизу белой зоны (на странице со стоимостью/подарками белая зона ниже, используем меньшее значение)
+      // Находим последнюю белую карточку (стоимость или подарки)
+      const lastCard = stoimostDiv || podarkiDiv;
+      if (lastCard) {
+        // Создаем контакты с таким же стилем, как на странице "КАК МЫ РАБОТАЕМ?"
+        const companyInfoDiv = document.createElement('div');
+        companyInfoDiv.className = 'company-info';
+        companyInfoDiv.style.position = 'absolute'; // Абсолютное позиционирование относительно costGiftsPageInner
+        // Поднимаем контакты так же, как на последнем листе (относительно белой части)
+        // На последнем листе контакты подняты выше, здесь тоже поднимаем
+        companyInfoDiv.style.bottom = '30px'; // Поднимаем выше, как на последнем листе
+        companyInfoDiv.style.left = '40px'; // Отступ слева как у padding карточки
+        companyInfoDiv.style.right = '40px'; // Отступ справа как у padding карточки
+        companyInfoDiv.style.textAlign = 'center';
+        companyInfoDiv.style.borderTop = '1px solid #e5e7eb'; // Легкая разделительная линия
+        companyInfoDiv.style.paddingTop = '20px'; // Отступ сверху от линии
+        companyInfoDiv.style.paddingBottom = '0px'; // БЕЗ отступа снизу
+        companyInfoDiv.style.marginBottom = '0px'; // Без отступа снизу
+        companyInfoDiv.style.marginTop = '0px'; // Без отступа сверху
+        companyInfoDiv.style.backgroundColor = '#fff'; // Белый фон
+        companyInfoDiv.style.zIndex = '10'; // Поверх контента
+        companyInfoDiv.style.boxSizing = 'border-box'; // Чтобы padding учитывался
+        
+        const companyInfoText = document.createElement('div');
+        companyInfoText.style.fontSize = '13px';
+        companyInfoText.style.fontWeight = '400';
+        companyInfoText.style.color = '#8A8A8A'; // Серый цвет как у слоганов
+        companyInfoText.style.letterSpacing = '0.02em';
+        companyInfoText.style.lineHeight = '1';
+        companyInfoText.style.whiteSpace = 'nowrap';
+        companyInfoText.style.marginBottom = '0px';
+        companyInfoText.style.paddingBottom = '0px';
+        companyInfoText.style.marginTop = '0px';
+        companyInfoText.style.paddingTop = '0px';
+        companyInfoText.style.display = 'block';
+        companyInfoText.innerHTML = 'Конструктивные решения <span style="color: #8A8A8A; font-weight: 500;">+7 (495) 132-38-30</span> · <span style="color: #8A8A8A; font-weight: 500;">resdoma.ru</span>';
+        companyInfoDiv.appendChild(companyInfoText);
+        
+        // Делаем costGiftsPageInner position: relative для абсолютного позиционирования контактов
+        costGiftsPageInner.style.position = 'relative';
+        costGiftsPageInner.appendChild(companyInfoDiv);
+      }
+      
+      // Добавляем страницу только если есть хотя бы один блок
+      if (costGiftsPageInner.children.length > 0) {
+        kpRoot.appendChild(costGiftsPage);
+      }
+      }
+      
+    // УДАЛЕНО: fallback код больше не нужен, так как все блоки обрабатываются отдельно
+    // Комплектация - через paginateContent
+    // Стоимость и Подарки - через costGiftsPage
+    // Условия - через conditionsPage
+    
+    // Очищаем временный контейнер
+    document.body.removeChild(tempDiv);
+    
+    // ========== ОТДЕЛЬНАЯ СТРАНИЦА: КАК МЫ РАБОТАЕМ? (статический блок) ==========
+    // Проверяем, нужна ли отдельная бригада для монтажа свай
+    const needsSeparateTeamForKit = window.__kpNeedsSeparateTeamForKit || false;
+    const montageDays = needsSeparateTeamForKit ? 2 : 1;
+    const montageDaysText = montageDays === 1 ? '1 день' : '2 дня';
+    
+    // Создаем страницу "КАК МЫ РАБОТАЕМ?" - верстка как на других листах
+    const howWeWorkPage = document.createElement('div');
+    howWeWorkPage.className = 'kp-page kp-page--inner';
+    howWeWorkPage.style.position = 'absolute';
+    howWeWorkPage.style.left = '-9999px';
+    howWeWorkPage.style.width = '210mm';
+    howWeWorkPage.style.minHeight = '297mm';
+    // Для абсолютного позиционирования подвала нужен position: relative
+    // Но position уже absolute для скрытия, поэтому используем relative для контекста позиционирования
+    // На самом деле, absolute уже создает контекст, так что подвал будет позиционироваться относительно .kp-page
+    
+    const howWeWorkPageInner = document.createElement('div');
+    howWeWorkPageInner.className = 'kp-page-inner pdf-container';
+    // Используем стандартные стили как на других листах (белый фон, скругление, тень)
+    // НЕ переопределяем стили - пусть применяются CSS правила .kp-page--inner .kp-page-inner
+    howWeWorkPageInner.style.setProperty('display', 'flex', 'important');
+    howWeWorkPageInner.style.setProperty('flex-direction', 'column', 'important');
+    // Растягиваем белую карточку вниз, чтобы она заканчивалась чуть выше надписи
+    // Надпись на bottom: 5px от края страницы, высота надписи ~60px (font-size 50px * line-height 1.2)
+    // Верхний край надписи: 5px + 60px = 65px от низа страницы
+    // Белая карточка должна заканчиваться на 10px выше надписи = 65px + 10px = 75px от низа страницы
+    // .kp-page-inner имеет padding 48px по умолчанию, поэтому:
+    // min-height = высота страницы (297mm) - 75px (до нижнего края карточки) - 48px (верхний padding) = calc(297mm - 123px)
+    // Или проще: padding-bottom = 75px, чтобы нижний край карточки был на 75px от низа страницы
+    howWeWorkPageInner.style.setProperty('min-height', 'calc(297mm - 123px)', 'important'); // Растягиваем карточку почти до надписи
+    howWeWorkPageInner.style.setProperty('max-height', 'none', 'important');
+    howWeWorkPageInner.style.setProperty('padding-bottom', '75px', 'important'); // Отступ снизу, чтобы карточка заканчивалась на 10px выше надписи
+    // Делаем .kp-page-inner flex контейнером, чтобы белая карточка могла растягиваться
+    howWeWorkPageInner.style.setProperty('display', 'flex', 'important');
+    howWeWorkPageInner.style.setProperty('flex-direction', 'column', 'important');
+    howWeWorkPage.appendChild(howWeWorkPageInner);
+    
+    // Создаем .kp-spec-card (структура как в комплектации и стоимости)
+    const howWeWorkCard = document.createElement('div');
+    howWeWorkCard.className = 'kp-spec-card';
+    howWeWorkCard.style.setProperty('border-radius', '24px', 'important'); // Явно устанавливаем скругление углов с !important
+    howWeWorkCard.style.setProperty('background', '#fff', 'important'); // Явно устанавливаем белый фон
+    howWeWorkCard.style.setProperty('position', 'relative', 'important'); // Для абсолютного позиционирования контактов
+    howWeWorkCard.style.setProperty('overflow', 'visible', 'important'); // Убираем overflow, если он есть
+    howWeWorkCard.style.setProperty('display', 'flex', 'important'); // Flex для прижатия контактов к низу
+    howWeWorkCard.style.setProperty('flex-direction', 'column', 'important'); // Вертикальное направление
+    howWeWorkCard.style.setProperty('flex', '1', 'important'); // Растягиваем на всю доступную высоту
+    howWeWorkCard.style.setProperty('min-height', '100%', 'important'); // Минимальная высота 100%
+    // Убираем нижний padding у карточки полностью - устанавливаем padding явно: верх и боковые как в CSS (28px 40px), низ 0
+    howWeWorkCard.style.setProperty('padding', '28px 40px 0', 'important'); // Без нижнего padding у карточки - текст контактов будет у самого края
+    
+    // Заголовок
+    const title = document.createElement('h2');
+    title.className = 'kp-spec-title';
+    title.textContent = 'КАК МЫ РАБОТАЕМ?';
+    howWeWorkCard.appendChild(title);
+      
+    // Подзаголовок
+    const subtitle = document.createElement('p');
+    subtitle.className = 'kp-spec-subtitle';
+    subtitle.textContent = 'С нами спокойно и надежно.';
+    howWeWorkCard.appendChild(subtitle);
+    
+    // Контейнер для групп
+    const howWeWorkGroups = document.createElement('div');
+    howWeWorkGroups.className = 'kp-spec-groups';
+    
+    // Блок "Сроки"
+    const srokiGroup = document.createElement('div');
+    srokiGroup.className = 'kp-spec-group';
+    const srokiTitle = document.createElement('h3');
+    srokiTitle.className = 'kp-spec-group-title';
+    srokiTitle.textContent = 'Сроки';
+    srokiGroup.appendChild(srokiTitle);
+    const srokiList = document.createElement('ul');
+    srokiList.className = 'kp-spec-list';
+    srokiList.innerHTML = `<li>Срок изготовления: 1 день</li><li>Монтаж на участке: ${montageDaysText}</li>`;
+    srokiGroup.appendChild(srokiList);
+    howWeWorkGroups.appendChild(srokiGroup);
+    
+    // Блок "Оплата"
+    const oplataGroup = document.createElement('div');
+    oplataGroup.className = 'kp-spec-group';
+    const oplataTitle = document.createElement('h3');
+    oplataTitle.className = 'kp-spec-group-title';
+    oplataTitle.textContent = 'Оплата';
+    oplataGroup.appendChild(oplataTitle);
+    const oplataList = document.createElement('ul');
+    oplataList.className = 'kp-spec-list';
+    oplataList.innerHTML = '<li>Без предоплаты — оплата по факту</li><li>Стоимость фиксируем в коммерческом предложении</li>';
+    oplataGroup.appendChild(oplataList);
+    howWeWorkGroups.appendChild(oplataGroup);
+    
+    // Блок "Гарантия"
+    const garantiaGroup = document.createElement('div');
+    garantiaGroup.className = 'kp-spec-group';
+    const garantiaTitle = document.createElement('h3');
+    garantiaTitle.className = 'kp-spec-group-title';
+    garantiaTitle.textContent = 'Гарантия';
+    garantiaGroup.appendChild(garantiaTitle);
+    const garantiaList = document.createElement('ul');
+    garantiaList.className = 'kp-spec-list';
+    garantiaList.innerHTML = '<li>Гарантия 2 года на монтаж и материалы</li>';
+    garantiaGroup.appendChild(garantiaList);
+    howWeWorkGroups.appendChild(garantiaGroup);
+    
+    // Блок "Почему с нами спокойно"
+    const pochemuGroup = document.createElement('div');
+    pochemuGroup.className = 'kp-spec-group';
+    const pochemuTitle = document.createElement('h3');
+    pochemuTitle.className = 'kp-spec-group-title';
+    pochemuTitle.textContent = 'Почему с нами спокойно';
+    pochemuGroup.appendChild(pochemuTitle);
+    const pochemuList = document.createElement('ul');
+    pochemuList.className = 'kp-spec-list';
+    pochemuList.innerHTML = `
+      <li>Опыт работы более 10 лет</li>
+      <li>Постоянные бригады, без случайных шабашников</li>
+      <li>Хвойный лес, материалы 1 сорта без обзола</li>
+      <li>Вагонка и имитация бруса без гнили — отбираем вручную</li>
+      <li>Утепление с паро- и ветрозащитой — не экономим на скрытых слоях</li>
+      <li>Цена ниже большинства при том же наборе материалов</li>
+    `;
+    pochemuGroup.appendChild(pochemuList);
+    howWeWorkGroups.appendChild(pochemuGroup);
+    
+    // НЕ добавляем padding-bottom группам - контакты будут абсолютно позиционированы
+    howWeWorkCard.appendChild(howWeWorkGroups);
+    
+    // Информация о компании - внутри белой карточки, в самом низу, у края, серым цветом как слоганы
+    // Используем абсолютное позиционирование - текст должен быть прямо у края белой карточки
+    const companyInfoDiv = document.createElement('div');
+    companyInfoDiv.className = 'company-info';
+    companyInfoDiv.style.position = 'absolute'; // Абсолютное позиционирование относительно карточки
+    // Используем отрицательный bottom для точного позиционирования у края
+    // Опускаем в 3 раза ниже: было -20px, теперь -60px
+    companyInfoDiv.style.bottom = '-60px'; // Отрицательное значение, чтобы текст был у края карточки (в 3 раза ниже)
+    companyInfoDiv.style.transform = 'none'; // Убираем transform, используем только bottom
+    companyInfoDiv.style.marginBottom = '0px'; // Без отступа снизу
+    companyInfoDiv.style.left = '40px'; // Отступ слева как у padding карточки
+    companyInfoDiv.style.right = '40px'; // Отступ справа как у padding карточки
+    companyInfoDiv.style.textAlign = 'center';
+    companyInfoDiv.style.borderTop = '1px solid #e5e7eb'; // Легкая разделительная линия
+    companyInfoDiv.style.paddingTop = '20px'; // Отступ сверху от линии
+    companyInfoDiv.style.paddingBottom = '0px';
+    companyInfoDiv.style.marginBottom = '0px';
+    companyInfoDiv.style.marginTop = '0px';
+    companyInfoDiv.style.height = 'auto'; // Автоматическая высота
+    companyInfoDiv.style.backgroundColor = '#fff'; // Белый фон
+    companyInfoDiv.style.zIndex = '10'; // Поверх контента
+    // Используем отрицательный margin-bottom у текста, чтобы он был точно у края
+    companyInfoDiv.style.boxSizing = 'border-box'; // Чтобы padding учитывался
+    
+    const companyInfoText = document.createElement('div');
+    companyInfoText.style.fontSize = '13px'; // Размер как у подзаголовка
+    companyInfoText.style.fontWeight = '400';
+    companyInfoText.style.color = '#8A8A8A'; // Серый цвет как у слоганов (как .kp-spec-subtitle)
+    companyInfoText.style.letterSpacing = '0.02em';
+    companyInfoText.style.lineHeight = '1'; // Минимальный line-height - без дополнительного пространства
+    companyInfoText.style.whiteSpace = 'nowrap'; // В одну строку
+    companyInfoText.style.marginBottom = '0px'; // Без отступа снизу
+    companyInfoText.style.paddingBottom = '0px'; // Без отступа снизу
+    companyInfoText.style.marginTop = '0px'; // Без отступа сверху
+    companyInfoText.style.paddingTop = '0px'; // Без отступа сверху
+    companyInfoText.style.display = 'block'; // Блочный элемент
+    // Используем transform для перемещения текста вниз - сдвигаем на padding-top контейнера (20px)
+    // чтобы сам текст был у края карточки
+    // Увеличиваем значение, чтобы текст был точно у края
+    // Убираем transform у текста, так как контейнер уже сдвигается
+    companyInfoText.style.marginTop = '0px'; // Без отступа сверху
+    companyInfoText.style.transform = 'none'; // Без трансформации - контейнер сам сдвигается
+    // Телефон и сайт тоже серым, но можно сделать чуть темнее для читаемости
+    companyInfoText.innerHTML = 'Конструктивные решения <span style="color: #8A8A8A; font-weight: 500;">+7 (495) 132-38-30</span> · <span style="color: #8A8A8A; font-weight: 500;">resdoma.ru</span>';
+    companyInfoDiv.appendChild(companyInfoText);
+    
+    // Добавляем информацию о компании в конец белой карточки
+    howWeWorkCard.appendChild(companyInfoDiv);
+    
+    // Обертываем в page-section (как в блоке стоимости)
+    const howWeWorkSection = document.createElement('div');
+    howWeWorkSection.className = 'page-section';
+    howWeWorkSection.style.flexShrink = '0'; // Не растягивается
+    howWeWorkSection.style.flex = '1'; // Растягивается на всю доступную высоту
+    howWeWorkSection.style.display = 'flex'; // Flex для растягивания карточки
+    howWeWorkSection.style.flexDirection = 'column'; // Вертикальное направление
+    howWeWorkSection.style.minHeight = '100%'; // Минимальная высота 100% для растягивания
+    howWeWorkSection.appendChild(howWeWorkCard);
+    
+    howWeWorkPageInner.appendChild(howWeWorkSection);
+    
+    // Подвал (тёмно-синяя зона страницы) - большая белая надпись (ВНЕ .kp-page-inner, внутри .kp-page)
+    // Добавляем напрямую в .kp-page, чтобы он был в темно-синей зоне
+    // Белая карточка заканчивается на 75px от низа страницы
+    // Опускаем надпись ниже, почти к краю, для гармоничного вида
+    const footerDiv = document.createElement('div');
+    footerDiv.className = 'kp-footer footer';
+    footerDiv.style.position = 'absolute'; // Абсолютное позиционирование относительно .kp-page
+    // Поднимаем надпись еще на 7px выше
+    // Было bottom: -23px, поднимаем на 7px: -23px + 7px = -16px
+    footerDiv.style.bottom = '-16px'; // Подняли еще на 7px выше
+    footerDiv.style.left = '0';
+    footerDiv.style.right = '0';
+    footerDiv.style.paddingTop = '0';
+    footerDiv.style.paddingBottom = '0';
+    footerDiv.style.textAlign = 'center';
+    footerDiv.style.width = '100%';
+    footerDiv.style.zIndex = '1';
+    // Фон не нужен, т.к. страница уже темно-синяя (#111827)
+    
+    // Белая надпись - красивое размещение внизу темно-синей зоны, капсом
+    const footerText = document.createElement('div');
+    footerText.style.fontSize = '36px'; // Оптимальный размер для читаемости
+    footerText.style.fontWeight = '700';
+    footerText.style.color = '#ffffff';
+    footerText.style.letterSpacing = '0.05em'; // Увеличиваем межбуквенное расстояние для красоты
+    footerText.style.lineHeight = '1.3';
+    footerText.style.textShadow = 'none';
+    footerText.style.textTransform = 'uppercase'; // Капсом
+    footerText.style.whiteSpace = 'nowrap'; // Запрещаем перенос строк
+    footerText.style.opacity = '0.95'; // Легкая прозрачность для элегантности
+    footerText.textContent = 'Давайте строить вместе 💛';
+    footerDiv.appendChild(footerText);
+    
+    // Добавляем подвал напрямую в .kp-page (в темно-синюю зону), а не в .kp-page-inner
+    howWeWorkPage.appendChild(footerDiv);
+    
+    // Добавляем страницу в корневой контейнер
+    kpRoot.appendChild(howWeWorkPage);
+    
+    // Добавляем корневой контейнер в DOM
+    document.body.appendChild(kpRoot);
+    
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Рендерим каждую страницу отдельно
+    const pages = kpRoot.querySelectorAll('.kp-page');
+    
+    if (pages.length === 0) {
+      console.error('ОШИБКА: Не найдено ни одной страницы для рендеринга!');
+      throw new Error('Не найдено ни одной страницы для рендеринга PDF');
+    }
+    
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+      
+      // Устанавливаем правильный фон для каждой страницы
+      const backgroundColor = getComputedStyle(page).backgroundColor || '#111827';
+      
+      // Для обложки заранее получаем координаты только сайта (кликабельная область),
+      // чтобы после вставки изображения в PDF добавить кликабельную ссылку
+      let siteBox = null;
+      if (page.classList.contains('kp-page--cover')) {
+        const siteEl = page.querySelector('.kp-manager-site');
+        if (siteEl) {
+          const pageRect = page.getBoundingClientRect();
+          const rect = siteEl.getBoundingClientRect();
+          siteBox = {
+            x: rect.left - pageRect.left,
+            y: rect.top - pageRect.top,
+            w: rect.width,
+            h: rect.height
+          };
+        }
+      }
+      
+      let canvas;
+      try {
+        canvas = await html2canvas(page, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: backgroundColor,
+        width: page.scrollWidth,
+        height: page.scrollHeight,
+        // Упрощенный onclone - не трогаем пробелы и стили, они уже нормализованы в DOM
+        onclone: (clonedDoc) => {
+          // Максимум - отключить анимации, если они есть
+          // Все манипуляции с пробелами и шрифтом оставлены на уровне реального DOM (CSS) + normalizeSpaces
+        }
+      });
+      } catch (canvasError) {
+        console.error(`Ошибка при рендеринге страницы ${i + 1}:`, canvasError);
+        throw new Error(`Ошибка при создании изображения страницы ${i + 1}: ${canvasError.message || canvasError}`);
+      }
+      
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      
+      if (i > 0) {
+        pdf.addPage();
+      }
+      
+      // Рассчитываем размеры изображения для PDF
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+      
+      // Добавляем кликабельную ссылку по сайту на обложке
+      if (page.classList.contains('kp-page--cover') && siteBox) {
+        const mmPerCssPx = pdfWidth / page.scrollWidth; // одинаковый масштаб по X/Y
+        const linkX = siteBox.x * mmPerCssPx;
+        const linkY = siteBox.y * mmPerCssPx;
+        const linkW = siteBox.w * mmPerCssPx;
+        const linkH = siteBox.h * mmPerCssPx;
+        try {
+          pdf.link(linkX, linkY, linkW, linkH, { url: 'https://resdoma.ru' });
+        } catch (e) {
+          console.warn('Не удалось добавить ссылку в PDF:', e);
+        }
+      }
+    }
+    
+    document.body.removeChild(kpRoot);
+    
+    // Генерируем имя файла
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('ru-RU', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    const titleLine = kpLines.find(line => line.includes('под ключ') || line.includes('—'));
+    let fileName = 'Коммерческое_предложение';
+    if (titleLine) {
+      const match = titleLine.match(/(\d+[×x]\d+)/);
+      if (match) {
+        fileName = `КП_${match[1]}_${dateStr.replace(/\./g, '_')}`;
+      }
+    }
+    // Создаем blob URL для просмотра в браузере
+    const pdfBlob = pdf.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    
+    // Открываем PDF в новой вкладке для просмотра (без скачивания)
+    const previewWindow = window.open(pdfUrl, '_blank');
+    if (previewWindow) {
+      previewWindow.focus();
+    } else {
+      console.error('Не удалось открыть PDF в новой вкладке (возможно, заблокирован popup)');
+      alert('⚠️ Не удалось открыть PDF. Проверьте, не заблокированы ли всплывающие окна в браузере.');
+    }
+    // Скачивание отключено - только просмотр в браузере
+    // pdf.save(fileName + '.pdf');
+    
+    // Восстанавливаем кнопку
+    if (btnPDF) {
+      btnPDF.disabled = false;
+      btnPDF.textContent = originalText;
+    }
+    
+    // Очищаем blob URL через 5 минут (чтобы не засорять память)
+    setTimeout(() => {
+      URL.revokeObjectURL(pdfUrl);
+    }, 300000);
+    
+    // Сбрасываем флаг генерации
+    window.__pdfGenerating = false;
+  } catch (error) {
+    console.error('Ошибка при генерации PDF:', error);
+    console.error('Стек ошибки:', error.stack);
+    
+    // Показываем более детальное сообщение об ошибке
+    let errorMessage = '❌ Ошибка при создании PDF. ';
+    if (error.message) {
+      errorMessage += error.message;
+    } else {
+      errorMessage += 'Попробуйте еще раз или обновите страницу (Ctrl+F5).';
+    }
+    alert(errorMessage);
+    
+    // Восстанавливаем кнопку при ошибке
+    if (btnPDF) {
+      btnPDF.disabled = false;
+      btnPDF.textContent = originalText;
+    }
+    
+    // Сбрасываем флаг генерации при ошибке
+    window.__pdfGenerating = false;
+  }
+}
+
+// Обработчик кнопки экспорта в PDF
+(function() {
+  function attachHandler() {
+  const btnPDF = document.getElementById("btnPDF");
+    if (!btnPDF) {
+      console.warn('Кнопка btnPDF не найдена, повторная попытка...');
+      setTimeout(attachHandler, 100);
+      return;
+    }
+    
+    // Удаляем все старые обработчики
+    const newBtn = btnPDF.cloneNode(true);
+    btnPDF.parentNode.replaceChild(newBtn, btnPDF);
+    
+    newBtn.addEventListener("click", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (typeof generatePDF !== 'function') {
+        console.error('Функция generatePDF не определена!');
+        alert('Ошибка: функция генерации PDF не найдена. Обновите страницу.');
+        return;
+      }
+      try {
+        generatePDF().catch(err => {
+          console.error('Ошибка в generatePDF:', err);
+          alert('Ошибка при создании PDF: ' + (err.message || err));
+        });
+      } catch (err) {
+        console.error('Синхронная ошибка при вызове generatePDF:', err);
+        alert('Ошибка при вызове функции PDF: ' + (err.message || err));
+      }
+    });
+  }
+  
+  // Пытаемся добавить обработчик
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attachHandler);
+  } else {
+    attachHandler();
+  }
+})();
+/* ------------------------------------------------------------------
+   9. Умная система веранд
+------------------------------------------------------------------ */
 // Функция для обновления доступных длин при выборе ширины
 function updateAvailableLengths() {
   const type = selType.value;
@@ -3483,7 +6521,6 @@ function updateAvailableLengths() {
     updateSvaiRecommendation();
   }
 }
-
 // Функция для поиска подходящих веранд по размерам
 function findMatchingVerandas(width, length, type) {
   // Определяем тип для поиска в конфигурации веранд
@@ -3591,13 +6628,11 @@ async function getKm(address, isEconomy = false){
     const cacheKey = `${address}_${isEconomy}`;
     const cached = routeCache.get(cacheKey);
     if (cached && (now - cached.timestamp) < CACHE_EXPIRY) {
-      console.log("Используем кэшированный маршрут");
       displayCachedRoute(cached.route, cached.depot, cached.coords, address);
       // Обновляем дистанцию для кэшированного маршрута
       const kmInfo = document.getElementById('kmInfo');
       if (kmInfo) {
         kmInfo.textContent = cached.km.toFixed(1).replace('.', ',') + ' км';
-        console.log('Дистанция из кэша:', cached.km + ' км');
       }
       return cached.km;
     }
@@ -3617,20 +6652,14 @@ async function getKm(address, isEconomy = false){
     
     // 3. Строим маршрут «база → клиент»
     // Обходим платные дороги и Москву (едем по МКАД)
-    console.log('Строим маршрут от', depot, 'до', coords);
     const route = await ymaps.route([depot, coords], { 
       avoidTolls: true,        // обход платных дорог
       avoidTraffic: true,      // обход пробок
       avoidHighways: false     // разрешаем МКАД
     });
 
-    console.log('Маршрут построен:', route);
-    console.log('Тип маршрута:', typeof route);
-    console.log('Методы маршрута:', Object.getOwnPropertyNames(route));
-
     // 3. Длина маршрута в км
     const km = route.getLength() / 1000;
-    console.log('Длина маршрута:', km, 'км');
 
     // 4. Сохраняем в кэш
     if (routeCache.size >= MAX_CACHE_SIZE) {
@@ -3648,15 +6677,12 @@ async function getKm(address, isEconomy = false){
     });
 
     // 5. Отображаем маршрут на карте
-    console.log('Строим маршрут от', depot, 'до', coords);
-    console.log('Длина маршрута:', km, 'км');
     displayRouteOnMap(route, depot, coords, address, isEconomy);
 
     // 6. Показываем под полем адреса
     const kmInfo = document.getElementById('kmInfo');
     if (kmInfo) {
       kmInfo.textContent = km.toFixed(1).replace('.', ',') + ' км';
-      console.log('Дистанция обновлена:', km + ' км');
     } else {
       console.error('Элемент kmInfo не найден!');
     }
@@ -3679,7 +6705,6 @@ async function getKm(address, isEconomy = false){
 // Функция отображения маршрута на карте
 function displayRouteOnMap(route, depot, coords, address, isEconomy) {
   try {
-    console.log('Отображаем маршрут на карте:', { route: !!route, depot, coords, address, isEconomy });
     
     // Очищаем карту и добавляем маршрут с точками
     map.geoObjects.removeAll();
@@ -3687,7 +6712,6 @@ function displayRouteOnMap(route, depot, coords, address, isEconomy) {
     // Добавляем маршрут на карту
     if (route) {
       map.geoObjects.add(route);
-      console.log('Маршрут добавлен на карту');
     } else {
       console.warn("Маршрут не найден");
     }
@@ -3732,7 +6756,6 @@ function displayRouteOnMap(route, depot, coords, address, isEconomy) {
 
 // Функция отображения кэшированного маршрута
 function displayCachedRoute(route, depot, coords, address) {
-  console.log('Используем кэшированный маршрут:', { route: !!route, depot, coords, address });
   displayRouteOnMap(route, depot, coords, address, depot === DEPOT_ECONOMY);
   // Создаем ссылку на Яндекс.Карты с координатами клиента
   createMapLink(coords, address);
@@ -3759,9 +6782,9 @@ function createMapLink(coords, address) {
     kmSep.style.display = 'inline';
     mapLink.style.display = 'inline';
     
-    console.log('Ссылка на карту создана:', mapUrl);
   }
 }
+
   // Сброс всех фильтров и результата
 function resetFilters() {
   selType.value = "house";
@@ -3785,5 +6808,7 @@ function clearDelivery() {
   
   // Очищаем кэш маршрутов при сбросе
   routeCache.clear();
-  console.log("Кэш маршрутов очищен");
+}
+
+
 }

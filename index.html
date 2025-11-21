@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Калькулятор каркасных строений</title>
 
+  <!-- Inter font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <!-- ваш CSS -->
   <link rel="stylesheet" href="style.css" />
 
@@ -50,8 +55,9 @@
             <option value="hoblok">Хозблок</option>
             <option value="bytovka">Бытовка</option>
             <option value="house" selected>Каркасный дом</option>
-            <option value="hoblok_economy">Хозблок эконом</option>
-            <option value="bytovka_economy">Бытовка эконом</option>
+            <!-- Эконом-линейки отключены -->
+            <!-- <option value="hoblok_economy">Хозблок эконом</option> -->
+            <!-- <option value="bytovka_economy">Бытовка эконом</option> -->
           </select>
         </div>
 
@@ -149,7 +155,7 @@
             <option value="roll100">Минеральная вата 100 мм (550 ₽/м²)</option>
             <option value="min150">Минеральная вата 150 мм (2 000 ₽/м²)</option>
             <option value="rock100">Каменная вата 100 мм (1000 ₽/м²)</option>
-            <option value="basalt150">Базальтовая 150 мм (4000 ₽/м²)</option>
+            <option value="basalt150">Базальтовая вата 150 мм (4000 ₽/м²)</option>
           </select>
         </div>
 
@@ -265,16 +271,16 @@
                  value="0">
         </div>
 
-        <!-- Перегородки для стандартной линейки -->
-        <h3>Перегородки</h3>
+        <!-- Стены (бывш. перегородки) для стандартной линейки -->
+        <h3>Стены</h3>
         <div class="form-row">
           <div class="form-group">
             <label>Тип</label>
             <select id="selPartitionType">
               <option value="">— нет —</option>
-              <option value="p1">Перегородка односторонняя (2.500 ₽/пог.м)</option>
-              <option value="p2">Перегородка двусторонняя (3.200 ₽/пог.м)</option>
-              <option value="p3">Перегородка двусторонняя с утеплением 100 мм (4.000 ₽/пог.м)</option>
+              <option value="p1">Стена односторонняя (2.500 ₽/пог.м)</option>
+              <option value="p2">Стена двусторонняя (3.200 ₽/пог.м)</option>
+              <option value="p3">Стена двусторонняя с утеплением 100 мм (4.000 ₽/пог.м)</option>
             </select>
           </div>
           <div class="form-group">
@@ -328,8 +334,22 @@
 
       <!-- Вывод КП -->
       <div class="section-card">
-        <h2>Коммерческое предложение</h2>
-        <div id="out"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h2 style="margin: 0;">Коммерческое предложение</h2>
+          <div class="kp-format-switcher" id="kpFormatSwitcher">
+            <button class="format-btn active" data-format="whatsapp" title="Формат для WhatsApp">
+              <img src="wa.jpg" alt="WhatsApp" style="width: 20px; height: 20px;">
+            </button>
+            <button class="format-btn" data-format="avito" title="Формат для Авито">
+              <img src="avito.png" alt="Авито" style="width: 20px; height: 20px;">
+            </button>
+          </div>
+        </div>
+        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+          <button id="btnShortKP" class="btn-success" style="flex: 1; padding: 14px 20px; font-size: 16px; font-weight: 600;">Короткое КП</button>
+          <button id="btnPDF" class="btn-warning" style="flex: 1; padding: 14px 20px; font-size: 16px; font-weight: 600;">Скачать PDF</button>
+        </div>
+        <div id="out" contenteditable="true" style="outline: none;"></div>
         
         <div class="action-buttons">
           <button id="btnCopy" class="btn-secondary">Копировать КП</button>
@@ -414,8 +434,8 @@
             </label>
           </div>
           
-          <!-- Перегородки -->
-          <h3>Перегородки</h3>
+          <!-- Стены -->
+          <h3>Стены</h3>
           <button type="button" id="btnAddPartition" class="btn-primary btn-small">Добавить перегородку</button>
           <div id="partitionsContainerEconomy"></div>
           
@@ -513,7 +533,67 @@
     </div>     <!-- /container -->
     </div>     <!-- /calc-container -->
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Модальное окно для предупреждения о бригаде по монтажу свай -->
+    <div id="pileTeamModal" class="pile-team-modal">
+      <div class="pile-team-modal-content">
+        <button class="pile-team-modal-close" onclick="closePileTeamModal()">&times;</button>
+        <div class="pile-team-modal-header">
+          <span class="pile-team-modal-icon">⚠️</span>
+          <h3 class="pile-team-modal-title">Внимание для менеджера!</h3>
+        </div>
+        <div class="pile-team-modal-body">
+          <p>Для монтажа выбранных свай требуется <strong>отдельная бригада</strong>.</p>
+          <div class="pile-team-modal-info">
+            <strong>Важно помнить:</strong>
+            <ul>
+              <li>Оформить отдельный заказ на монтаж свай</li>
+              <li>Рассчитать доставку: 60 ₽/км от Мытищ</li>
+              <li>Уведомить клиента о дополнительных расходах</li>
+            </ul>
+          </div>
+          <p style="font-size: 13px; color: #7f8c8d; margin-top: 16px;">
+            <strong>Своими силами</strong> мы можем установить только:<br>
+            • До 12 свай включительно<br>
+            • Типы: 1.5×76 и 2.0×76
+          </p>
+        </div>
+        <div class="pile-team-modal-footer">
+          <button class="pile-team-modal-btn pile-team-modal-btn-primary" onclick="closePileTeamModal()">
+            Понятно
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Модальное окно для выбора цвета профлиста -->
+    <div id="profColorModal" class="prof-color-modal">
+      <div class="prof-color-modal-content">
+        <button class="prof-color-modal-close" onclick="closeProfColorModal()">&times;</button>
+        <div class="prof-color-modal-header">
+          <span class="prof-color-modal-icon">🎨</span>
+          <h3 class="prof-color-modal-title" id="profColorModalTitle">Выберите цвет</h3>
+        </div>
+        <div class="prof-color-modal-body">
+          <p style="margin-bottom: 20px; color: #6b7280; font-size: 14px;" id="profColorModalText">Выберите цвет из доступных вариантов:</p>
+          <div class="prof-color-grid" id="profColorGrid">
+            <!-- Цвета будут добавлены через JavaScript -->
+          </div>
+        </div>
+        <div class="prof-color-modal-footer">
+          <button class="prof-color-modal-btn prof-color-modal-btn-secondary" onclick="closeProfColorModal()">
+            Отмена
+          </button>
+          <button class="prof-color-modal-btn prof-color-modal-btn-primary" onclick="confirmProfColor()">
+            Выбрать
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- jsPDF и html2canvas -->
+    <!-- Используем более стабильную версию jsPDF 2.3.1 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.3.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="script.js"></script>
     </body>
     </html>
