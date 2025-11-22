@@ -2555,6 +2555,12 @@ function groupKomplektatsiya(pkg, format = 'whatsapp') {
   pkg.forEach(item => {
     const lower = item.toLowerCase();
     const trimmed = item.trim();
+    
+    // Пропускаем заголовки категорий (начинаются с "•") - они добавляются автоматически через formatGroupTitle
+    if (trimmed.startsWith('•')) {
+      return; // Пропускаем заголовки категорий
+    }
+    
     // Удаляем префикс "– " или "- " и все пробелы в начале
     const clean = trimmed.replace(/^[–-]\s*/, '').replace(/^\s+/, '').trim();
     const cleanLower = clean.toLowerCase();
@@ -2623,14 +2629,27 @@ function groupKomplektatsiya(pkg, format = 'whatsapp') {
                lower.includes('площадь') || lower.includes('тёплое помещение')) {
       groups.razmery.push(item);
     
-    // 11) Всё остальное — Прочее (исключаем предупреждения)
+    // 11) Всё остальное — Прочее (исключаем предупреждения и продающий текст)
     } else {
       // Исключаем предупреждения про сваи и доставку - они идут в блок "Важно:"
+      // Также исключаем продающий текст из "Подарки" - он не должен быть в комплектации
+      // Исключаем информацию о стоимости - она должна быть только в разделе "СТОИМОСТЬ"
       if (!lower.includes('внимание') && !lower.includes('монтаж свай') && 
-          !lower.includes('доставка: 60') && !lower.includes('доставка 60')) {
+          !lower.includes('доставка: 60') && !lower.includes('доставка 60') &&
+          !lower.includes('сборка за 1 день') && 
+          !lower.includes('обработка полозьев') && 
+          !lower.includes('ступеньки на вход') &&
+          !lower.includes('ступеньки') && // общий фильтр для всех вариантов
+          !lower.includes('антисептик') &&
+          !lower.includes('базовая:') && 
+          !lower.includes('доставка:') && 
+          !lower.includes('итого:') &&
+          !lower.startsWith('базовая') &&
+          !lower.startsWith('доставка') &&
+          !lower.startsWith('итого')) {
         groups.prochee.push(item);
       }
-      // Предупреждения просто пропускаем - они уже обработаны в importantNotes
+      // Предупреждения и продающий текст просто пропускаем
     }
   });
   
@@ -3997,7 +4016,14 @@ if (type !== "hoblok") {
     roofLabel = `${baseName} ${selectedProfColor.name} (${selectedProfColor.code})`;
   }
   pushPkg(`– Кровля: ${roofLabel}`);
-// 5) Окна (деревянные по умолчанию) и двери базовые
+// 5) Пол (для стандартной линейки)
+if (!isEconomy && selFloor) {
+  const floorValue = selFloor.value;
+  if (floorValue && FLOOR_CAPT[floorValue]) {
+    pushPkg(`– ${FLOOR_CAPT[floorValue]}`);
+  }
+}
+// 6) Окна (деревянные по умолчанию) и двери базовые
 let hasUserWindow = false;                    // новое имя
 // -----------------------------------------------------------------
 
@@ -4954,12 +4980,38 @@ async function generatePDF() {
       }).filter(line => line.length > 0); // Убираем только полностью пустые строки
       
       // Пытаемся извлечь комплектацию (строки начинающиеся с "–", "-" или "•")
+      // Исключаем продающий текст из "Подарки" и информацию о стоимости
       const pkgFromOut = linesFromOut.filter(line => {
         const trimmed = line.trim();
+        const lower = trimmed.toLowerCase();
+        // Исключаем продающий текст из "Подарки"
+        if (lower.includes('сборка за 1 день') || 
+            lower.includes('обработка полозьев') || 
+            lower.includes('ступеньки на вход') ||
+            lower.includes('антисептик')) {
+          return false;
+        }
+        // Исключаем информацию о стоимости - она должна быть только в разделе "СТОИМОСТЬ"
+        if (lower.includes('базовая:') || 
+            lower.includes('доставка:') || 
+            lower.includes('итого:') ||
+            lower.startsWith('базовая') ||
+            lower.startsWith('доставка') ||
+            lower.startsWith('итого')) {
+          return false;
+        }
         return trimmed.startsWith('–') || trimmed.startsWith('-') || trimmed.startsWith('•');
       }).map(line => {
-        // Убираем маркеры списка и лишние пробелы
-        return line.replace(/^[–\-•]\s*/, '').trim();
+        const trimmed = line.trim();
+        // Заголовки категорий начинаются с "•" и НЕ начинаются с "–" или "-"
+        // Сохраняем маркер "•" для заголовков, чтобы их можно было распознать позже
+        if (trimmed.startsWith('•') && !trimmed.startsWith('• –') && !trimmed.startsWith('• -')) {
+          // Это заголовок категории - сохраняем маркер "•"
+          return trimmed;
+        } else {
+          // Это обычный элемент - убираем маркеры списка
+          return line.replace(/^[–\-•]\s*/, '').trim();
+        }
       });
       
       // Используем распарсенные данные
@@ -5542,8 +5594,19 @@ async function generatePDF() {
     // Применяем группировку (для PDF формат не важен, используем whatsapp)
     const groupedPkg = groupKomplektatsiya(kpPkg, 'whatsapp');
     let komplektatsiya = groupedPkg.map(item => {
-      // Убираем тире в начале, если есть
-      return item.replace(/^[–-]\s*/, '');
+      // Заголовки категорий начинаются с "•" - их не трогаем, только убираем звездочки
+      if (item.trim().startsWith('•')) {
+        // Это заголовок категории - убираем только звездочки для форматирования WhatsApp
+        return item
+          .replace(/^\*\s*/, '') // Убираем звездочку в начале (если есть)
+          .replace(/\s*\*$/, ''); // Убираем звездочку в конце (если есть)
+      } else {
+        // Это обычный элемент - убираем тире и звездочки
+        return item
+          .replace(/^[–-]\s*/, '') // Убираем тире в начале
+          .replace(/^\*\s*/, '') // Убираем звездочку в начале (если есть)
+          .replace(/\s*\*$/, ''); // Убираем звездочку в конце (если есть)
+      }
     });
     // Парсим остальные данные из КП
     let ploshchad = [];
@@ -5720,8 +5783,13 @@ async function generatePDF() {
             });
             komplektatsiyaGroups.push({ title: currentGroup, items: uniqueItems });
           }
-          // Извлекаем название группы (убираем "•" и звездочки)
-          currentGroup = trimmed.replace(/^•\s*\*?/, '').replace(/\*$/, '').trim();
+          // Извлекаем название группы (убираем "•" и звездочки для форматирования WhatsApp)
+          // Убираем маркер списка "•", затем убираем звездочки для жирного текста (*текст*)
+          currentGroup = trimmed
+            .replace(/^•\s*/, '') // Убираем маркер списка
+            .replace(/^\*\s*/, '') // Убираем звездочку в начале (если есть)
+            .replace(/\s*\*$/, '') // Убираем звездочку в конце (если есть)
+            .trim();
           currentItems = [];
         } else if (trimmed) {
           // Элемент группы
