@@ -458,7 +458,7 @@ const FLOOR_CAPT = {
   plain: "Пол: Обрезная доска 25×150 мм",
   osb:   "Пол: ОСБ влагостойкий",
   board50x150: "Пол: Шпунт доска чистовой 50×150 мм",
-  planed35x140: "Пол: Строганая 35×140 мм"
+  planed35x140: "Пол: Строганая доска 35×140 мм"
 };
 const RAMP = 2000; // пандус
 
@@ -1243,7 +1243,7 @@ addrInput.addEventListener('input', () => {
             suggBox.appendChild(div);
         });
         }).catch(err => {
-            console.warn('Ошибка геокодирования (это нормально):', err.message || err);
+            // Ошибка геокодирования (это нормально, игнорируем)
             suggBox.style.display = 'none';
         });
         }
@@ -1486,8 +1486,24 @@ document.addEventListener('click', e => {
           // Сбрасываем флаг при удалении свай
           screwPileWarningShown = false;
           lastPileType = null;
+          // Сбрасываем ручное количество свай
+          window.__manualPileCount = null;
+          const inpPileCount = document.getElementById('inpPileCount');
+          if (inpPileCount) {
+            inpPileCount.value = '';
+          }
           calculate();
           return;
+        }
+        
+        // При смене типа свай сбрасываем ручное количество (будет пересчитано автоматически)
+        // Но только если тип действительно изменился
+        if (lastPileType && lastPileType !== currentValue) {
+          window.__manualPileCount = null;
+          const inpPileCount = document.getElementById('inpPileCount');
+          if (inpPileCount) {
+            inpPileCount.value = '';
+          }
         }
         
         // Вызываем calculate() для пересчета всего
@@ -1497,6 +1513,48 @@ document.addEventListener('click', e => {
     }
   }
   if (selEconomySvaiType) selEconomySvaiType.addEventListener("change", calculate);
+  
+  // Обработчик для ручного изменения количества свай
+  const inpPileCount = document.getElementById('inpPileCount');
+  if (inpPileCount) {
+    if (!inpPileCount.hasAttribute('data-pile-count-handler-added')) {
+      inpPileCount.setAttribute('data-pile-count-handler-added', 'true');
+      
+      inpPileCount.addEventListener("input", function(e) {
+        const manualCount = parseInt(inpPileCount.value, 10);
+        const selSvaiType = document.getElementById('selSvaiType');
+        
+        // Если поле пустое или невалидное, используем автоматический расчет
+        if (!manualCount || manualCount < 1) {
+          // Сбрасываем на автоматический расчет
+          window.__manualPileCount = null;
+          calculate();
+          return;
+        }
+        
+        // Если сваи не выбраны, не делаем ничего
+        if (!selSvaiType || !selSvaiType.value) {
+          return;
+        }
+        
+        // Сохраняем ручное количество для использования в calculate()
+        window.__manualPileCount = manualCount;
+        
+        // Пересчитываем с новым количеством
+        calculate();
+      });
+      
+      // При потере фокуса валидируем значение
+      inpPileCount.addEventListener("blur", function(e) {
+        const manualCount = parseInt(inpPileCount.value, 10);
+        if (manualCount && manualCount < 1) {
+          inpPileCount.value = '';
+          window.__manualPileCount = null;
+          calculate();
+        }
+      });
+    }
+  }
   
   // Обработчики для эконом-линейки
   const chkSteps = document.getElementById('chkSteps');
@@ -2078,12 +2136,18 @@ function updateAllPileOptions(selSvaiType, verandaWidthForPiles, isInsideVeranda
   selSvaiType.setAttribute('data-updating', 'true');
   
   // Перебираем все опции и обновляем их текст с актуальным количеством свай
+  const currentSelectedDim = selSvaiType.value;
   Array.from(selSvaiType.options).forEach(option => {
     if (!option.value) return; // Пропускаем пустую опцию
     
     const dim = option.value;
     // Рассчитываем количество свай с учетом веранды для каждой опции
-    const cnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVeranda);
+    let cnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVeranda);
+    
+    // Если это выбранная опция и задано ручное количество свай, используем его
+    if (dim === currentSelectedDim && window.__manualPileCount && window.__manualPileCount > 0) {
+      cnt = window.__manualPileCount;
+    }
     
     // Базовая цена за сваю (БЕЗ наценки)
     const pricePerPile = PILES_STANDARD[dim];
@@ -2590,8 +2654,11 @@ function groupKomplektatsiya(pkg, format = 'whatsapp') {
       const text = clean.replace(/^внутренняя\s+отделка\s*:\s*/i, '').trim();
       if (text) groups.otdelka.vnutrennyaya.push(text);
     
-    // 3) Фундамент
-    } else if (lower.includes('фундамент') || lower.includes('свайн')) {
+    // 3) Фундамент (исключаем строки с ценами в рублях - они в блоке "СТОИМОСТЬ")
+    // Но НЕ исключаем строки с размерами (например, "3,0 × 12 шт")
+    // Проверяем наличие цены в рублях (₽) в строке, а не просто ":" и цифры
+    } else if ((lower.includes('фундамент') || lower.includes('свайн')) && 
+               !/\d[\d\s]*\s*₽/.test(item)) { // Исключаем только строки с ценой в рублях
       groups.fundament.push(item);
     
     // 4) Веранды и пристройки
@@ -2607,8 +2674,43 @@ function groupKomplektatsiya(pkg, format = 'whatsapp') {
                lower.includes('полозья') || (lower.includes('каркас') && !lower.includes('отделка'))) {
       groups.karkas.push(item);
     
-    // 7) Пол (только если это не полозья)
-    } else if ((lower.startsWith('– пол') || lower.includes('пол:')) && !lower.includes('полозья')) {
+    // 7) Пол (ВАЖНО: проверяем ПОЛ ПЕРЕД другими группами, чтобы не попало в Прочее)
+    // Проверяем различные форматы: "– Пол:", "– пол:", "Пол:", "пол:" и т.д.
+    // Также проверяем доски определенных размеров, которые используются ТОЛЬКО для пола
+    } else if (((lower.startsWith('– пол:') || 
+                lower.startsWith('– пол ') ||
+                cleanLower.startsWith('пол:') ||
+                (cleanLower.includes('пол:') && (cleanLower.includes('обрезная доска') || 
+                                                 cleanLower.includes('осб') || 
+                                                 cleanLower.includes('шпунт') || 
+                                                 cleanLower.includes('строганая доска') ||
+                                                 cleanLower.includes('строганая 35') ||
+                                                 cleanLower.includes('доска 25') ||
+                                                 cleanLower.includes('доска 50') ||
+                                                 cleanLower.includes('доска 35'))) ||
+               (cleanLower.includes('пол') && (cleanLower.includes('обрезная доска') || 
+                                               cleanLower.includes('осб влагостойк') ||
+                                               cleanLower.includes('шпунт доска') ||
+                                               cleanLower.includes('строганая доска'))) ||
+               // Проверяем доски определенных размеров, которые используются ТОЛЬКО для пола
+               (cleanLower.includes('обрезная доска') && (cleanLower.includes('25×150') || cleanLower.includes('25х150') || cleanLower.includes('25 x 150'))) ||
+               (cleanLower.includes('строганая доска') && (cleanLower.includes('35×140') || cleanLower.includes('35х140') || cleanLower.includes('35 x 140'))) ||
+               (cleanLower.includes('шпунт доска') && cleanLower.includes('50×150')) ||
+               (cleanLower.includes('осб') && cleanLower.includes('влагостойк'))) &&
+               !lower.includes('полозья') && 
+               !cleanLower.includes('полозья') &&
+               !lower.includes('пола') && 
+               !cleanLower.includes('пола') &&
+               !lower.includes('полу') &&
+               !cleanLower.includes('полу') &&
+               !lower.includes('пола ') &&
+               !cleanLower.includes('пола ') &&
+               !lower.includes('полу ') &&
+               !cleanLower.includes('полу ') &&
+               !lower.includes('пола,') &&
+               !cleanLower.includes('пола,') &&
+               !lower.includes('полу,') &&
+               !cleanLower.includes('полу,'))) {
       groups.pol.push(item);
     
     // 8) Утепление и защита
@@ -2634,7 +2736,56 @@ function groupKomplektatsiya(pkg, format = 'whatsapp') {
       // Исключаем предупреждения про сваи и доставку - они идут в блок "Важно:"
       // Также исключаем продающий текст из "Подарки" - он не должен быть в комплектации
       // Исключаем информацию о стоимости - она должна быть только в разделе "СТОИМОСТЬ"
-      if (!lower.includes('внимание') && !lower.includes('монтаж свай') && 
+      // ВАЖНО: исключаем пол из Прочее (он должен быть в разделе Пол)
+      // Используем ту же логику, что и в основной проверке пола
+      const isFloorItemForProchee = ((lower.startsWith('– пол:') || 
+                                     lower.startsWith('– пол ') ||
+                                     cleanLower.startsWith('пол:') ||
+                                     (cleanLower.includes('пол:') && (cleanLower.includes('обрезная доска') || 
+                                                                      cleanLower.includes('осб') || 
+                                                                      cleanLower.includes('шпунт') || 
+                                                                      cleanLower.includes('строганая доска') ||
+                                                                      cleanLower.includes('строганая 35') ||
+                                                                      cleanLower.includes('доска 25') ||
+                                                                      cleanLower.includes('доска 50') ||
+                                                                      cleanLower.includes('доска 35'))) ||
+                                    (cleanLower.includes('пол') && (cleanLower.includes('обрезная доска') || 
+                                                                    cleanLower.includes('осб влагостойк') ||
+                                                                    cleanLower.includes('шпунт доска') ||
+                                                                    cleanLower.includes('строганая доска'))) ||
+                                    // Проверяем доски определенных размеров, которые используются ТОЛЬКО для пола
+                                    (cleanLower.includes('обрезная доска') && (cleanLower.includes('25×150') || cleanLower.includes('25х150') || cleanLower.includes('25 x 150'))) ||
+                                    (cleanLower.includes('строганая доска') && (cleanLower.includes('35×140') || cleanLower.includes('35х140') || cleanLower.includes('35 x 140'))) ||
+                                    (cleanLower.includes('шпунт доска') && cleanLower.includes('50×150')) ||
+                                    (cleanLower.includes('осб') && cleanLower.includes('влагостойк'))) &&
+                                   !lower.includes('полозья') && 
+                                   !cleanLower.includes('полозья') &&
+                                   !lower.includes('пола') && 
+                                   !cleanLower.includes('пола') &&
+                                   !lower.includes('полу') &&
+                                   !cleanLower.includes('полу') &&
+                                   !lower.includes('пола ') &&
+                                   !cleanLower.includes('пола ') &&
+                                   !lower.includes('полу ') &&
+                                   !cleanLower.includes('полу ') &&
+                                   !lower.includes('пола,') &&
+                                   !cleanLower.includes('пола,') &&
+                                   !lower.includes('полу,') &&
+                                   !cleanLower.includes('полу,'));
+      
+      // Исключаем дополнительные опции с ценами (они в отдельном блоке "СТОИМОСТЬ")
+      const hasPrice = /\d[\d\s]*\s*₽/.test(item) || /:\s*\d/.test(item);
+      const isExtraItem = hasPrice && (lower.includes('дополнительные опции') || 
+                                       lower.includes('пол →') || 
+                                       lower.includes('свайный фундамент') ||
+                                       lower.includes('веранда') ||
+                                       lower.includes('стена') ||
+                                       lower.includes('утепление') ||
+                                       lower.includes('высота'));
+      
+      if (!isFloorItemForProchee &&
+          !isExtraItem &&
+          !lower.includes('внимание') && !lower.includes('монтаж свай') && 
           !lower.includes('доставка: 60') && !lower.includes('доставка 60') &&
           !lower.includes('сборка за 1 день') && 
           !lower.includes('обработка полозьев') && 
@@ -2738,15 +2889,25 @@ function groupKomplektatsiya(pkg, format = 'whatsapp') {
     isFirstGroup = false;
   }
   
-  // 8. Пол
+  // 8. Пол (убираем дубликаты и строки с ценами)
   if (groups.pol.length > 0) {
     if (!isFirstGroup) result.push('');
     result.push(formatGroupTitle('Пол'));
-    // Убираем дублирование "Пол:" из элементов
+    // Убираем дублирование "Пол:" из элементов и строки с ценами
+    const seenPol = new Set();
     groups.pol.forEach(item => {
+      // Пропускаем строки с ценами (они в блоке "СТОИМОСТЬ")
+      if (/\d[\d\s]*\s*₽/.test(item) || /:\s*\d/.test(item)) return;
+      
       let cleanItem = item.replace(/^[–-]\s*пол\s*:\s*/i, '– ').trim();
       if (!cleanItem.startsWith('–')) cleanItem = '– ' + cleanItem;
+      
+      // Убираем дубликаты
+      const normalized = cleanItem.toLowerCase().trim();
+      if (!seenPol.has(normalized)) {
+        seenPol.add(normalized);
       result.push(cleanItem);
+      }
     });
     isFirstGroup = false;
   }
@@ -2915,7 +3076,7 @@ if (address) {
   try {
     km = await getKm(address, isEconomy);        // вернёт число или null
     if (km === null) {
-      console.warn("Не удалось построить маршрут");
+      // Не удалось построить маршрут
       hasRoute = false;
     } else {
       hasRoute = true;
@@ -3431,7 +3592,12 @@ if (extraH > 0) {
         verandaWidthForPiles = 0;
       }
       
-      const cnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVer);
+      let cnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVer);
+      
+      // Если задано ручное количество свай, используем его
+      if (window.__manualPileCount && window.__manualPileCount > 0) {
+        cnt = window.__manualPileCount;
+      }
       
       // Базовая цена за сваю (БЕЗ наценки)
       const pricePerPile = PILES_STANDARD[dim];
@@ -3445,7 +3611,9 @@ if (extraH > 0) {
       }
       
       // Добавляем в допы (без уведомления для клиента)
-      addExtra(totalPrice, `Свайный фундамент ${dim} × ${cnt} шт`, true);
+      // Заменяем точку на запятую в размерах свай (3.0 → 3,0)
+      const dimFormatted = dim.replace(/\./g, ',');
+      addExtra(totalPrice, `Свайный фундамент ${dimFormatted} × ${cnt} шт`, true);
       
       // Проверяем и показываем модальное окно (если не отключено для веранды)
       const showWarning = !window.__updatePilesWithoutWarning;
@@ -4093,8 +4261,27 @@ if (!isEconomy) {
       // Для хозблоков/бытовок с верандой из прайса - веранда уже учтена в размерах
       verandaWidthForPiles = 0;
     }
-    const pileCnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVer);
+    let pileCnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVer);
     
+    // Если задано ручное количество свай, используем его
+    if (window.__manualPileCount && window.__manualPileCount > 0) {
+      pileCnt = window.__manualPileCount;
+    }
+    
+    // Обновляем поле ввода количества свай
+    const inpPileCount = document.getElementById('inpPileCount');
+    if (inpPileCount) {
+      if (window.__manualPileCount && window.__manualPileCount > 0) {
+        // Если задано ручное количество, оставляем его в поле
+        inpPileCount.value = window.__manualPileCount;
+      } else {
+        // Иначе заполняем автоматически рассчитанным значением
+        inpPileCount.value = pileCnt > 0 ? pileCnt : '';
+      }
+    }
+    
+    // Добавляем сваи в комплектацию только если количество > 0
+    if (pileCnt > 0) {
     // НОВАЯ ЛОГИКА: Определяем, нужна ли отдельная бригада для комплектации
     // Своими силами можем: до 12 свай включительно И только типы 1.5×76 или 2.0×76
     // Отдельная бригада нужна: если > 12 свай ИЛИ тип не 1.5×76 и не 2.0×76
@@ -4102,18 +4289,22 @@ if (!isEconomy) {
     const isOwnTeamCount = (pileCnt <= 12);
     const needsSeparateTeamForKit = !isOwnTeamType || !isOwnTeamCount;
     
-    // Заменяем точку на запятую в размерах свай для правильного отображения (3.0 → 3,0)
-    const svaiDim = selSvaiType.value.replace(/\./g, ',');
-    pushPkg(`– Свайный фундамент: ${svaiDim} × ${pileCnt} шт`);
+      // Заменяем точку на запятую в размерах свай для правильного отображения (3.0 → 3,0)
+      const svaiDim = selSvaiType.value.replace(/\./g, ',');
+      pushPkg(`– Свайный фундамент: ${svaiDim} × ${pileCnt} шт`);
     
     if (needsSeparateTeamForKit) {
       // Сохраняем предупреждения в importantNotes, а не в комплектацию
       importantNotes.push('Монтаж свай выполняется отдельной бригадой');
-      importantNotes.push('Доставка: 60 ₽/км от Мытищ, считается индивидуально');
+        // Доставка свай теперь рассчитывается отдельно и выводится в отдельном блоке
+      }
+      
+      // Сохраняем для использования в PDF
+      window.__kpNeedsSeparateTeamForKit = needsSeparateTeamForKit;
+    } else {
+      // Если количество свай = 0, отдельная бригада не нужна
+      window.__kpNeedsSeparateTeamForKit = false;
     }
-    
-    // Сохраняем для использования в PDF
-    window.__kpNeedsSeparateTeamForKit = needsSeparateTeamForKit;
   } else {
     // Если сваи не выбраны, отдельная бригада не нужна
     window.__kpNeedsSeparateTeamForKit = false;
@@ -4175,9 +4366,7 @@ if (type === "house" && baseDoorLabel.includes("Самонаборн")) {
 }
 pushPkg(`– ${baseDoorLabel} (${baseDoorQty} шт)`);
 
-/* ──────── НОВЫЙ БЛОК: материал пола ──────── */
-pushPkg("– " + FLOOR_CAPT[floorCode]);
-/* ──────────────────────────────────────────── */
+// Пол уже добавлен выше в строке 4023 для стандартной линейки, не дублируем
 
 
 // 8) Высота помещения / потолка (учитываем extraH)
@@ -4185,8 +4374,8 @@ const extraHcm = +inpExtraH.value || 0;               // прибавка в с�
 
 let heightLine;
 if (type === "house") {
-  // Формируем строку с высотой в новом формате
-  const base = roofType === "lom" ? "2,1–2,4 м" : "2,4 м";
+  // Формируем строку с высотой в новом формате (с пробелами вокруг тире)
+  const base = roofType === "lom" ? "2,1 - 2,4 м" : "2,4 м";
   if (extraHcm > 0) {
     heightLine = `${base} (+${extraHcm} см к стандарту)`;
   } else {
@@ -4243,6 +4432,20 @@ if (verArea > 0.01){
 }
 lines.push(`– Общая площадь: ${totalSq} м²`);
 /* ─── Блок «Стоимость» ───────────────────────────────────────── */
+// Определяем название строения для доставки (используем type из calculate())
+// Определяем ДО блока стоимости, чтобы было доступно везде
+let buildingName = '';
+if (type === 'house') {
+  buildingName = 'дома';
+} else if (type === 'hoblok') {
+  buildingName = 'хозблока';
+} else if (type === 'bytovka') {
+  buildingName = 'бытовки';
+}
+
+// Объявляем pileDelivery здесь, чтобы он был доступен везде
+let pileDelivery = 0;
+
 // В коротком режиме пропускаем детализацию стоимости
 if (!isShortKP) {
   lines.push(
@@ -4252,6 +4455,7 @@ if (!isShortKP) {
 
   lines.push(`– Базовая: ${formatPrice(basePrice)} ₽  `);
 
+  // Всегда выводим доставку в полном КП, даже если del === 0
   if (hasRoute) {
     if (isEconomy) {
       // Детальная информация о доставке для эконом-линейки
@@ -4260,9 +4464,9 @@ if (!isShortKP) {
       
       let deliveryText = "";
       if (deliveryType === 'manipulator') {
-        deliveryText = `Доставка манипулятором: ${formatPrice(del)} ₽`;
+        deliveryText = `Доставка ${buildingName} манипулятором: ${formatPrice(del)} ₽`;
       } else {
-        deliveryText = `Доставка комплектами: ${formatPrice(del)} ₽`;
+        deliveryText = `Доставка ${buildingName} комплектами: ${formatPrice(del)} ₽`;
       }
       
       if (assembly && deliveryType !== 'kit') {
@@ -4272,15 +4476,39 @@ if (!isShortKP) {
       
       lines.push(`– ${deliveryText}  `);
     } else {
-    lines.push(`– Доставка: ${formatPrice(del)} ₽  `);
+      // Для стандартной линейки с маршрутом показываем точную цену
+      lines.push(`– Доставка ${buildingName}: ${formatPrice(del)} ₽  `);
     }
   } else {
     if (isEconomy) {
       // Для эконом-линейки показываем точную сумму
-      lines.push(`– Доставка: ${formatPrice(del)} ₽  `);
+      lines.push(`– Доставка ${buildingName}: ${formatPrice(del)} ₽  `);
     } else {
-      // Для стандартной линейки показываем "от"
-    lines.push(`– Доставка: от ${formatPrice(del)} ₽  `);
+      // Для стандартной линейки без маршрута показываем "от"
+      lines.push(`– Доставка ${buildingName}: от ${formatPrice(del)} ₽  `);
+    }
+  }
+
+  // Расчет доставки свай (60 руб/км от Мытищ) - сразу после доставки строения
+  if (!isEconomy) {
+    const selSvaiType = document.getElementById('selSvaiType');
+    if (selSvaiType && selSvaiType.value && hasRoute && address) {
+      try {
+        // Рассчитываем расстояние от Мытищ до адреса клиента
+        const pileDeliveryKm = await getPileDeliveryKm(address);
+        if (pileDeliveryKm && pileDeliveryKm > 0) {
+          // 60 руб/км от Мытищ
+          pileDelivery = Math.ceil(pileDeliveryKm * 60);
+          // Добавляем к итогу
+          total += pileDelivery;
+          // Добавляем в текст КП сразу после доставки строения
+          lines.push(`– Доставка свай: ${formatPrice(pileDelivery)} ₽  `);
+          // Добавляем отступ после доставки свай для лучшей читаемости
+          lines.push(``);
+        }
+      } catch (error) {
+        console.error("Ошибка при расчете доставки свай:", error);
+      }
     }
   }
 
@@ -4292,55 +4520,32 @@ if (!isShortKP) {
     return `▪ ${cleanLabel}${pcs}: ${formatPrice(sum)} ₽`;
   });
 
+  // Дополнительные опции добавляем в полном КП
   if (extras > 0) {
     lines.push(`– Дополнительные опции: ${formatPrice(extras)} ₽  `);
-    
-    // Для полного КП показываем цены, для короткого — без цен
-    if (!isShortKP) {
-      // В полном КП: показываем каждый доп с ценой (без путей замены)
-      const currentIntName = (typeof finalInt !== 'undefined' && finalInt) ? MATERIAL_NAME[finalInt] : null;
-      const currentExtName = (typeof finalExt !== 'undefined' && finalExt) ? MATERIAL_NAME[finalExt] : null;
-      
-      Object.entries(extraMap).forEach(([label, sum]) => {
-        let name = String(label).trim();
-        // Если есть путь замены «A → B», оставляем правую часть (итоговый материал/опция)
-        if (name.includes('→')) {
-          const parts = name.split('→').map(s => s.trim());
-          name = parts[parts.length - 1] || name;
-        }
-        // Убираем только ХВОСТ цены в конце (после двоеточия или «—»), описание сохраняем
-        name = name.replace(/[:—]\s*\d[\d\s]*\s*₽\s*$/u, '').trim();
-        // Добавляем семантику для отделок, чтобы различать внутреннюю/наружную
-        if (currentIntName && name === currentIntName) {
-          name = `Внутренняя отделка — ${name}`;
-        } else if (currentExtName && name === currentExtName) {
-          name = `Наружная отделка — ${name}`;
-        }
-        // Выводим с ценой
-        lines.push(`– ${name}: ${formatPrice(sum)} ₽`);
-      });
+  }
     } else {
-      // В коротком КП: список без цен
-      const currentIntName = (typeof finalInt !== 'undefined' && finalInt) ? MATERIAL_NAME[finalInt] : null;
-      const currentExtName = (typeof finalExt !== 'undefined' && finalExt) ? MATERIAL_NAME[finalExt] : null;
-      const linesExtraNames = Object.keys(extraMap).map((label) => {
-        let name = String(label).trim();
-        if (name.includes('→')) {
-          const parts = name.split('→').map(s => s.trim());
-          name = parts[parts.length - 1] || name;
-        }
-        name = name.replace(/[:—]\s*\d[\d\s]*\s*₽\s*$/u, '').trim();
-        if (currentIntName && name === currentIntName) {
-          name = `Внутренняя отделка — ${name}`;
-        } else if (currentExtName && name === currentExtName) {
-          name = `Наружная отделка — ${name}`;
-        }
-        return name;
-      }).filter(Boolean);
-      lines.push(...linesExtraNames.map(n => `– ${n}`));
+  // В коротком режиме НЕ выводим доставку - только итого
+  // Доставка все равно учитывается в итоге, но не показывается отдельной строкой
+}
+
+// pileDelivery уже рассчитан в блоке if (!isShortKP) выше
+// Но если мы в коротком режиме, нужно рассчитать его отдельно
+if (isShortKP && !isEconomy) {
+  const selSvaiType = document.getElementById('selSvaiType');
+  if (selSvaiType && selSvaiType.value && hasRoute && address) {
+    try {
+      const pileDeliveryKm = await getPileDeliveryKm(address);
+      if (pileDeliveryKm && pileDeliveryKm > 0) {
+        pileDelivery = Math.ceil(pileDeliveryKm * 60);
+        total += pileDelivery;
+      }
+    } catch (error) {
+      console.error("Ошибка при расчете доставки свай:", error);
     }
   }
 }
+
 lines.push(
   ``,
   `👉 *Итого: ${formatPrice(total)} ₽*`
@@ -4483,7 +4688,13 @@ if (outElForSave) {
       } else if ((type === 'hoblok' || type === 'bytovka') && selectedVeranda) {
         verandaWidthForPiles = 0;
       }
-      const cnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVer);
+      let cnt = calculatePilesByRows(l, w, verandaWidthForPiles, isInsideVer);
+      
+      // Если задано ручное количество свай, используем его
+      if (window.__manualPileCount && window.__manualPileCount > 0) {
+        cnt = window.__manualPileCount;
+      }
+      
       const pricePerPile = PILES_STANDARD[dim];
       if (pricePerPile) {
         // Обновляем текст выбранной опции с актуальным количеством
@@ -4493,12 +4704,15 @@ if (outElForSave) {
       }
     }
   }
+// buildingName уже определен выше, используем его для PDF
+
 // Допы: сохраняем список и сумму для рендера в PDF-блоке «Стоимость»
 window.__kpExtrasList = (typeof linesExtra !== 'undefined' && Array.isArray(linesExtra)) ? linesExtra.slice() : [];
 window.__kpExtrasSum = (typeof extras !== 'undefined') ? extras : 0;
 // Сохраняем переменные стоимости для PDF
 window.__kpBasePrice = (typeof basePrice !== 'undefined') ? basePrice : 0;
 window.__kpDelivery = (typeof del !== 'undefined') ? del : 0;
+window.__kpPileDelivery = (typeof pileDelivery !== 'undefined') ? pileDelivery : 0;
 window.__kpTotal = (typeof total !== 'undefined') ? total : 0;
 // Сохраняем формат доставки для PDF
 let deliveryTextForPDF = '';
@@ -4506,18 +4720,18 @@ if (hasRoute) {
   if (isEconomy) {
     const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value;
     if (deliveryType === 'manipulator') {
-      deliveryTextForPDF = `Доставка манипулятором: ${formatPrice(del)} ₽`;
+      deliveryTextForPDF = `Доставка ${buildingName} манипулятором: ${formatPrice(del)} ₽`;
     } else {
-      deliveryTextForPDF = `Доставка комплектами: ${formatPrice(del)} ₽`;
+      deliveryTextForPDF = `Доставка ${buildingName} комплектами: ${formatPrice(del)} ₽`;
     }
   } else {
-    deliveryTextForPDF = `Доставка: ${formatPrice(del)} ₽`;
+    deliveryTextForPDF = `Доставка ${buildingName}: ${formatPrice(del)} ₽`;
   }
 } else {
   if (isEconomy) {
-    deliveryTextForPDF = `Доставка: ${formatPrice(del)} ₽`;
+    deliveryTextForPDF = `Доставка ${buildingName}: ${formatPrice(del)} ₽`;
   } else {
-    deliveryTextForPDF = `Доставка: от ${formatPrice(del)} ₽`;
+    deliveryTextForPDF = `Доставка ${buildingName}: от ${formatPrice(del)} ₽`;
   }
 }
 window.__kpDeliveryText = deliveryTextForPDF;
@@ -4539,6 +4753,11 @@ if (extras > 0) {
     name = name.replace(/[:—]\s*\d[\d\s]*\s*₽\s*$/u, '').trim();
     // Унифицируем формат: заменяем ":" на "→" для единообразия
     name = name.replace(/^([^:]+):\s*/, '$1 → ');
+    // Исправляем запятые в размерах свай (3 0 → 3,0 или 3.0 → 3,0)
+    // Заменяем точку на запятую в десятичных числах (3.0 → 3,0)
+    name = name.replace(/(\d+)\.(\d+)/g, '$1,$2'); // "3.0" → "3,0"
+    // Заменяем пробел между цифрами перед "х" или "×" на запятую (3 0 х → 3,0 х)
+    name = name.replace(/(\d+)\s+(\d+)(?=\s*х|\s*×)/g, '$1,$2'); // "3 0 х" → "3,0 х"
     // Добавляем семантику для отделок
     if (currentIntName && name === currentIntName) {
       name = `Внутренняя отделка → ${name}`;
@@ -4577,7 +4796,7 @@ if (outEl) {
   
   // Подсветка только для формата Авито
   if (currentFormat === 'avito') {
-    const limit = 950;
+    const limit = 800;
     const len = outText.length;
     
     if (len <= limit) {
@@ -4753,7 +4972,9 @@ function paginateContent(groups, maxHeight = 700, subtitleText = '') {
     }
     
     // Проверяем, помещается ли группа на текущую страницу
-    const wouldOverflow = currentPage !== null && currentHeight + groupHeight > maxHeight;
+    // Добавляем небольшой запас в 20px, чтобы текст точно не залезал на края страницы
+    const margin = 20; // Запас от краев страницы
+    const wouldOverflow = currentPage !== null && currentHeight + groupHeight > (maxHeight - margin);
     
     // Если группа не влезает, но это последняя короткая "Прочее" - пробуем втиснуть на первую страницу
     if (wouldOverflow && !isLastProchee) {
@@ -4910,10 +5131,135 @@ function createPDFContainer() {
 }
 
 
+// Функция для проверки итога при ручном редактировании КП
+function validateTotalPrice(lines) {
+  if (!lines || lines.length === 0) return { isValid: true, difference: 0 };
+  
+  // Парсим итоговую сумму из текста
+  // Также учитываем доставку свай
+  let totalFromText = null;
+  const totalPattern = /итого\s*:\s*([\d\s]+)\s*₽/i;
+  for (let line of lines) {
+    const match = line.match(totalPattern);
+    if (match) {
+      // Извлекаем число, убирая все пробелы
+      const totalStr = match[1].replace(/\s/g, '');
+      totalFromText = parseInt(totalStr, 10);
+      break;
+    }
+  }
+  
+  if (!totalFromText) return { isValid: true, difference: 0 }; // Если не нашли итог, пропускаем проверку
+  
+  // Парсим базовую цену
+  let basePrice = 0;
+  const basePattern = /базовая\s*:\s*([\d\s]+)\s*₽/i;
+  for (let line of lines) {
+    const match = line.match(basePattern);
+    if (match) {
+      const priceStr = match[1].replace(/\s/g, '');
+      basePrice = parseInt(priceStr, 10);
+      break;
+    }
+  }
+  
+  // Парсим доставку (обычная доставка строения, не доставка свай)
+  let delivery = 0;
+  const deliveryPattern = /доставка\s*:?\s*(?:от\s*|манипулятором\s*:?\s*|комплектами\s*:?\s*)?([\d\s]+)\s*₽/i;
+  for (let line of lines) {
+    const lower = line.toLowerCase();
+    // Пропускаем строки с доставкой свай
+    if (lower.includes('доставка свай')) continue;
+    const match = line.match(deliveryPattern);
+    if (match) {
+      const priceStr = match[1].replace(/\s/g, '');
+      delivery = parseInt(priceStr, 10);
+      break;
+    }
+  }
+  
+  // Парсим доставку свай
+  let pileDelivery = 0;
+  const pileDeliveryPattern = /доставка\s+свай\s*:?\s*([\d\s]+)\s*₽/i;
+  for (let line of lines) {
+    const match = line.match(pileDeliveryPattern);
+    if (match) {
+      const priceStr = match[1].replace(/\s/g, '');
+      pileDelivery = parseInt(priceStr, 10);
+      break;
+    }
+  }
+  
+  // Парсим дополнительные опции (суммируем все цены из блока "Дополнительные опции")
+  let extrasSum = 0;
+  let inExtrasSection = false;
+  const extrasPattern = /дополнительные\s+опции\s*:\s*([\d\s]+)\s*₽/i;
+  const extraItemPattern = /[–-]\s*([^:—]+?)\s*[—:]\s*([\d\s]+)\s*₽/;
+  
+  for (let line of lines) {
+    // Проверяем, начался ли блок дополнительных опций
+    if (line.toLowerCase().includes('дополнительные опции')) {
+      inExtrasSection = true;
+      // Пытаемся извлечь общую сумму из заголовка
+      const match = line.match(extrasPattern);
+      if (match) {
+        const sumStr = match[1].replace(/\s/g, '');
+        extrasSum = parseInt(sumStr, 10);
+        inExtrasSection = false; // Если нашли общую сумму, не парсим отдельные позиции
+      }
+      continue;
+    }
+    
+    // Если мы в блоке допов и нашли общую сумму - выходим
+    if (inExtrasSection && extrasSum > 0) {
+      if (line.toLowerCase().includes('итого') || line.toLowerCase().includes('стоимость')) {
+        inExtrasSection = false;
+        break;
+      }
+    }
+    
+    // Парсим отдельные позиции допов (если не нашли общую сумму)
+    if (inExtrasSection && extrasSum === 0) {
+      const match = line.match(extraItemPattern);
+      if (match) {
+        const priceStr = match[2].replace(/\s/g, '');
+        const price = parseInt(priceStr, 10);
+        if (!isNaN(price)) {
+          extrasSum += price;
+        }
+      }
+    }
+    
+    // Выходим из блока допов при переходе к другому разделу
+    if (inExtrasSection && (line.toLowerCase().includes('итого') || line.toLowerCase().includes('стоимость'))) {
+      inExtrasSection = false;
+    }
+  }
+  
+  // Суммируем все позиции (включая доставку свай)
+  const calculatedTotal = basePrice + delivery + pileDelivery + extrasSum;
+  const difference = Math.abs(totalFromText - calculatedTotal);
+  
+  // Допустимая погрешность - 10 рублей
+  const tolerance = 10;
+  const isValid = difference <= tolerance;
+  
+  return {
+    isValid,
+    difference,
+    totalFromText,
+    calculatedTotal,
+    basePrice,
+    delivery,
+    pileDelivery,
+    extrasSum
+  };
+}
+
 async function generatePDF() {
   // ВАЖНО: Проверяем, не запущена ли уже генерация PDF (защита от двойного вызова)
   if (window.__pdfGenerating) {
-    console.warn('PDF уже генерируется, пропускаем повторный вызов');
+    // PDF уже генерируется, пропускаем повторный вызов
     return;
   }
   window.__pdfGenerating = true;
@@ -4928,9 +5274,42 @@ async function generatePDF() {
   const outElement = document.getElementById("out");
   if (!outElement || !outElement.textContent.trim()) {
     alert("⚠️ Сначала рассчитайте КП!");
-    console.warn('КП не сформировано, выход из generatePDF');
+    // КП не сформировано, выход из generatePDF
     window.__pdfGenerating = false;
     return;
+  }
+  
+  // Проверяем итог при ручном редактировании
+  const currentOutText = (outElement.textContent || outElement.innerText || '').trim();
+  const originalOutText = (window.__kpOriginalText || '').trim();
+  const isManuallyEdited = currentOutText !== originalOutText && currentOutText.length > 0;
+  
+  if (isManuallyEdited) {
+    // Парсим текст для проверки итога
+    const plainText = currentOutText;
+    const linesFromOut = plainText.split(/\n|\r\n?/).map(line => line.trim()).filter(line => line.length > 0);
+    
+    const validation = validateTotalPrice(linesFromOut);
+    
+    if (!validation.isValid) {
+      let message = `⚠️ ВНИМАНИЕ: Итоговая сумма не совпадает с суммой позиций!\n\n` +
+                     `Итого в КП: ${formatPrice(validation.totalFromText)} ₽\n` +
+                     `Сумма позиций: ${formatPrice(validation.calculatedTotal)} ₽\n` +
+                     `Разница: ${formatPrice(validation.difference)} ₽\n\n` +
+                     `Базовая: ${formatPrice(validation.basePrice)} ₽\n` +
+                     `Доставка: ${formatPrice(validation.delivery)} ₽\n`;
+      if (validation.pileDelivery > 0) {
+        message += `Доставка свай: ${formatPrice(validation.pileDelivery)} ₽\n`;
+      }
+      message += `Дополнительные опции: ${formatPrice(validation.extrasSum)} ₽\n\n` +
+                 `Проверьте правильность сумм в КП перед генерацией PDF.`;
+      
+      const shouldContinue = confirm(message + '\n\nПродолжить генерацию PDF?');
+      if (!shouldContinue) {
+        window.__pdfGenerating = false;
+        return;
+      }
+    }
   }
   
   // Определяем тип строения для выбора правильной иконки
@@ -5019,6 +5398,159 @@ async function generatePDF() {
       // Используем комплектацию из #out только если она найдена, иначе оставляем оригинальную
       if (pkgFromOut.length > 0) {
         kpPkg = pkgFromOut;
+      }
+      
+      // Парсим количество свай из отредактированного текста
+      // Ищем строку "Свайный фундамент: X,0 × N шт" в комплектации
+      const pilePattern = /свайный\s+фундамент\s*:?\s*([\d,]+)\s*[×х]\s*(\d+)\s*шт/i;
+      let parsedPileCount = null;
+      let parsedPileDim = null;
+      
+      for (let line of linesFromOut) {
+        const match = line.match(pilePattern);
+        if (match) {
+          parsedPileDim = match[1].replace(',', '.'); // "3,0" → "3.0"
+          parsedPileCount = parseInt(match[2], 10);
+          break;
+        }
+      }
+      
+      // Если найдено измененное количество свай, обновляем цену в допах
+      if (parsedPileCount && parsedPileDim) {
+        // Находим соответствующую цену за сваю
+        const dimKey = Object.keys(PILES_STANDARD).find(key => {
+          const keyDim = key.split('×')[0].trim();
+          return keyDim === parsedPileDim;
+        });
+        
+        if (dimKey) {
+          const pricePerPile = PILES_STANDARD[dimKey];
+          let totalPrice;
+          if (dimKey === "1.5×76" && parsedPileCount >= 16) {
+            totalPrice = grossInt(3350 * parsedPileCount);
+          } else {
+            totalPrice = grossInt(pricePerPile * parsedPileCount);
+          }
+          
+          // Обновляем цену свай в допах (ищем строку "Свайный фундамент" в допах)
+          // Это будет использовано при парсинге допов ниже
+          window.__parsedPilePrice = totalPrice;
+          window.__parsedPileCount = parsedPileCount;
+          window.__parsedPileDim = parsedPileDim.replace('.', ',');
+        }
+      }
+      
+      // Парсим дополнительные опции из отредактированного текста для PDF
+      const parsedExtrasListForPDF = [];
+      let inExtrasSection = false;
+      const extrasHeaderPattern = /дополнительные\s+опции\s*:\s*([\d\s]+)\s*₽/i;
+      const extraItemPattern = /[–-]\s*([^:—]+?)\s*[—:]\s*([\d\s]+)\s*₽/;
+      
+      for (let line of linesFromOut) {
+        const lower = line.toLowerCase();
+        
+        // Проверяем, начался ли блок дополнительных опций
+        if (lower.includes('дополнительные опции')) {
+          inExtrasSection = true;
+          continue;
+        }
+        
+        // Выходим из блока допов при переходе к другому разделу
+        if (inExtrasSection && (lower.includes('итого') || lower.includes('стоимость') || lower.includes('подарки'))) {
+          inExtrasSection = false;
+          break;
+        }
+        
+        // Парсим отдельные позиции допов
+        if (inExtrasSection) {
+          const match = line.match(extraItemPattern);
+          if (match) {
+            let name = match[1].trim();
+            let priceStr = match[2].replace(/\s/g, '');
+            let price = parseInt(priceStr, 10);
+            
+            // Если это строка со свайным фундаментом и мы нашли обновленное количество свай,
+            // используем обновленную цену
+            const lowerName = name.toLowerCase();
+            if (lowerName.includes('свайный фундамент') && window.__parsedPilePrice) {
+              price = window.__parsedPilePrice;
+              // Обновляем название с правильным количеством
+              if (window.__parsedPileCount && window.__parsedPileDim) {
+                name = `Свайный фундамент ${window.__parsedPileDim} × ${window.__parsedPileCount} шт`;
+              }
+            }
+            
+            if (!isNaN(price) && name) {
+              // Исправляем запятые в размерах свай
+              name = name.replace(/(\d+)\.(\d+)/g, '$1,$2'); // "3.0" → "3,0"
+              name = name.replace(/(\d+)\s+(\d+)(?=\s*х|\s*×)/g, '$1,$2'); // "3 0 х" → "3,0 х"
+              // Убираем тире в начале, если есть
+              name = name.replace(/^[–-]\s*/, '').trim();
+              parsedExtrasListForPDF.push(`${name} — ${formatPrice(price)} ₽`);
+            }
+          }
+        }
+      }
+      
+      // Если нашли дополнительные опции в отредактированном тексте, обновляем их
+      if (parsedExtrasListForPDF.length > 0) {
+        window.__kpExtrasListForPDF = parsedExtrasListForPDF;
+      }
+      
+      // Парсим базовую цену, доставку и итог из отредактированного текста
+      for (let line of linesFromOut) {
+        const lower = line.toLowerCase();
+        const pricePattern = /([\d\s]+)\s*₽/;
+        
+        // Базовая цена
+        if (lower.includes('базовая:') || lower.startsWith('базовая')) {
+          const match = line.match(/базовая\s*:\s*([\d\s]+)\s*₽/i);
+          if (match) {
+            const priceStr = match[1].replace(/\s/g, '');
+            const price = parseInt(priceStr, 10);
+            if (!isNaN(price)) {
+              window.__kpBasePrice = price;
+            }
+          }
+        }
+        
+        // Доставка (обычная доставка строения)
+        if ((lower.includes('доставка:') || lower.startsWith('доставка')) && !lower.includes('доставка свай')) {
+          const match = line.match(/доставка\s*:?\s*(?:от\s*|манипулятором\s*:?\s*|комплектами\s*:?\s*)?([\d\s]+)\s*₽/i);
+          if (match) {
+            const priceStr = match[1].replace(/\s/g, '');
+            const price = parseInt(priceStr, 10);
+            if (!isNaN(price)) {
+              window.__kpDelivery = price;
+              // Обновляем текст доставки
+              window.__kpDeliveryText = line.replace(/^[–-]\s*/, '').trim();
+            }
+          }
+        }
+        
+        // Доставка свай
+        if (lower.includes('доставка свай')) {
+          const match = line.match(/доставка\s+свай\s*:?\s*([\d\s]+)\s*₽/i);
+          if (match) {
+            const priceStr = match[1].replace(/\s/g, '');
+            const price = parseInt(priceStr, 10);
+            if (!isNaN(price)) {
+              window.__kpPileDelivery = price;
+            }
+          }
+        }
+        
+        // Итого
+        if (lower.includes('итого:') || lower.startsWith('итого')) {
+          const match = line.match(/итого\s*:\s*([\d\s]+)\s*₽/i);
+          if (match) {
+            const priceStr = match[1].replace(/\s/g, '');
+            const price = parseInt(priceStr, 10);
+            if (!isNaN(price)) {
+              window.__kpTotal = price;
+            }
+          }
+        }
       }
     }
     
@@ -5751,7 +6283,7 @@ async function generatePDF() {
       t = t.replace(/ветро-?влагоизоляция/gi, '<strong>ветро-влагоизоляция</strong>');
       // 80×80 — 3 шт.
       t = t.replace(/(\d+\s*[×x]\s*\d+\s*—\s*\d+\s*шт\.?)/gi, '<strong>$1</strong>');
-      // Диапазон высот 2,1–2,4 м
+      // Диапазон высот 2,1 - 2,4 м (с пробелами вокруг тире)
       t = t.replace(/(\d+[\.,]\d+\s*[–-]\s*\d+[\.,]\d+\s*м)/gi, '<strong>$1</strong>');
       return t;
     }
@@ -5834,7 +6366,8 @@ async function generatePDF() {
       
       // Создаем страницы комплектации через paginateContent
       // Заголовок "КОМПЛЕКТАЦИЯ" добавляется автоматически внутри paginateContent на каждую страницу
-      const komplektatsiyaPages = paginateContent(komplektatsiyaGroups, 700, subtitleText);
+      // Увеличиваем maxHeight до 900px для эффективного использования первого листа (A4: 297mm = ~1123px, отступы ~50px сверху/снизу, остается ~900px рабочей области)
+      const komplektatsiyaPages = paginateContent(komplektatsiyaGroups, 900, subtitleText);
       
       // Добавляем все страницы комплектации в контейнер
       komplektatsiyaPages.forEach(page => {
@@ -5846,6 +6379,7 @@ async function generatePDF() {
       // 4. СТОИМОСТЬ (используем тот же стиль карточки, что и комплектация)
       const basePrice = window.__kpBasePrice || 0;
       const delivery = window.__kpDelivery || 0;
+      const pileDelivery = window.__kpPileDelivery || 0;
       const extrasSum = window.__kpExtrasSum || 0;
       const total = window.__kpTotal || 0;
       const deliveryText = window.__kpDeliveryText || '';
@@ -5895,7 +6429,11 @@ async function generatePDF() {
         contentHtml += `<li>Базовая: ${basePriceFormatted}\u00A0₽</li>`;
         if (deliveryText) {
           contentHtml += `<li>${escapeHtml(deliveryFormatted)}</li>`;
-    }
+        }
+        if (pileDelivery > 0) {
+          const pileDeliveryFormatted = formatPriceForPDF(pileDelivery);
+          contentHtml += `<li>Доставка свай: ${pileDeliveryFormatted}\u00A0₽</li>`;
+        }
         if (extrasSum > 0) {
           contentHtml += `<li>Дополнительные опции: ${extrasFormatted}\u00A0₽</li>`;
         }
@@ -6433,7 +6971,7 @@ async function generatePDF() {
         try {
           pdf.link(linkX, linkY, linkW, linkH, { url: 'https://resdoma.ru' });
         } catch (e) {
-          console.warn('Не удалось добавить ссылку в PDF:', e);
+          // Не удалось добавить ссылку в PDF
         }
       }
     }
@@ -6455,8 +6993,15 @@ async function generatePDF() {
         fileName = `КП_${match[1]}_${dateStr.replace(/\./g, '_')}`;
       }
     }
-    // Скачиваем PDF файл
-    pdf.save(fileName + '.pdf');
+    // ВРЕМЕННО: Открываем PDF в новом окне вместо скачивания (для тестирования)
+    // Временно открываем PDF в новой вкладке вместо скачивания (для тестирования)
+    const pdfBlob = pdf.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    window.open(pdfUrl, '_blank');
+    // Автоматически освобождаем память через 5 минут
+    setTimeout(() => {
+      URL.revokeObjectURL(pdfUrl);
+    }, 300000);
     
     // Восстанавливаем кнопку
     if (btnPDF) {
@@ -6495,7 +7040,7 @@ async function generatePDF() {
   function attachHandler() {
   const btnPDF = document.getElementById("btnPDF");
     if (!btnPDF) {
-      console.warn('Кнопка btnPDF не найдена, повторная попытка...');
+      // Кнопка btnPDF не найдена, повторная попытка...
       setTimeout(attachHandler, 100);
       return;
     }
@@ -6657,10 +7202,49 @@ function updateVerandaOptions() {
 /* ------------------------------------------------------------------
    10. Геокодер + маршрут
 ------------------------------------------------------------------ */
+// Функция для расчета расстояния от Мытищ до адреса клиента (для доставки свай)
+async function getPileDeliveryKm(address) {
+  try {
+    if (typeof ymaps === 'undefined') {
+      // Карты не загружены
+      return null;
+    }
+    
+    // Мытищи - точка отправления для доставки свай
+    const MYTISHCHI_DEPOT = [55.9116, 37.7308]; // Координаты Мытищ
+    
+    // 1. Ищем координаты введённого адреса
+    const res = await ymaps.geocode(address, { results: 1 });
+    const obj = res.geoObjects.get(0);
+    if (!obj) {
+      // Адрес не найден для расчета доставки свай
+      return null;
+    }
+    
+    const coords = obj.geometry.getCoordinates(); // точка клиента
+    
+    // 2. Строим маршрут «Мытищи → клиент»
+    // Только бесплатные дороги, без заезда внутрь МКАД
+    const route = await ymaps.route([MYTISHCHI_DEPOT, coords], {
+      avoidTolls: true,        // обход платных дорог
+      avoidTraffic: true,      // обход пробок
+      avoidHighways: false,    // разрешаем МКАД (но не заезжаем внутрь благодаря avoidTolls)
+      routingMode: 'auto'      // автоматический режим маршрутизации
+    });
+    
+    // 3. Длина маршрута в км
+    const km = route.getLength() / 1000;
+    return km;
+  } catch (error) {
+    console.error("Ошибка при расчете доставки свай:", error);
+    return null;
+  }
+}
+
 async function getKm(address, isEconomy = false){
   try{
     if (typeof ymaps === 'undefined') {
-      console.warn("Карты не загружены");
+      // Карты не загружены
       return null;
     }
     
@@ -6668,7 +7252,7 @@ async function getKm(address, isEconomy = false){
     const now = Date.now();
     if (now - lastRequestTime < 60000) { // меньше минуты
       if (requestCount >= MAX_REQUESTS_PER_MINUTE) {
-        console.warn("Превышен лимит запросов к API. Попробуйте позже.");
+        // Превышен лимит запросов к API. Попробуйте позже.
         return null;
       }
     } else {
@@ -6764,7 +7348,7 @@ function displayRouteOnMap(route, depot, coords, address, isEconomy) {
     if (route) {
       map.geoObjects.add(route);
     } else {
-      console.warn("Маршрут не найден");
+      // Маршрут не найден
     }
   
     // Добавляем точку А (производство)
@@ -6798,7 +7382,7 @@ function displayRouteOnMap(route, depot, coords, address, isEconomy) {
       map.setBounds(bounds, { checkZoomRange: true });
     }
   } catch (error) {
-    console.warn("Не удалось подогнать карту к маршруту:", error);
+    // Не удалось подогнать карту к маршруту
   }
   } catch (error) {
     console.error("Ошибка отображения маршрута:", error);
