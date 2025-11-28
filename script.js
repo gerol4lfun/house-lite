@@ -1324,14 +1324,8 @@ document.addEventListener('click', e => {
   
   if (btnReset) {
     btnReset.addEventListener("click", function() {
-      if (typeof resetFilters === 'function') {
         resetFilters();
-      } else {
-        console.error('Функция resetFilters не определена');
-      }
     });
-  } else {
-    console.error('Кнопка btnReset не найдена');
   }
   
   // Обработчик переключения короткого/полного КП (кнопка)
@@ -5761,11 +5755,14 @@ async function generatePDF() {
     logoImg.alt = 'Конструктивные решения';
     
     // Пробуем сначала logo-clean.svg, потом logo.png
+    // Используем HEAD запрос, чтобы проверить наличие файла без ошибки 404 в консоли
     let logoLoaded = false;
     try {
-      const logoCleanResponse = await fetch('logo-clean.svg');
+      const logoCleanResponse = await fetch('logo-clean.svg', { method: 'HEAD' });
       if (logoCleanResponse.ok && logoCleanResponse.status === 200) {
-        const logoCleanBlob = await logoCleanResponse.blob();
+        // Файл существует, загружаем его
+        const logoCleanBlobResponse = await fetch('logo-clean.svg');
+        const logoCleanBlob = await logoCleanBlobResponse.blob();
         const reader = new FileReader();
         logoImg.src = await new Promise((resolve, reject) => {
           reader.onload = () => resolve(reader.result);
@@ -5773,9 +5770,6 @@ async function generatePDF() {
           reader.readAsDataURL(logoCleanBlob);
         });
         logoLoaded = true;
-      } else {
-        // Если файл не найден (404), не загружаем
-        logoLoaded = false;
       }
     } catch (e) {
       // logo-clean.svg не найден или ошибка загрузки, пробуем logo.png
@@ -6993,15 +6987,8 @@ async function generatePDF() {
         fileName = `КП_${match[1]}_${dateStr.replace(/\./g, '_')}`;
       }
     }
-    // ВРЕМЕННО: Открываем PDF в новом окне вместо скачивания (для тестирования)
-    // Временно открываем PDF в новой вкладке вместо скачивания (для тестирования)
-    const pdfBlob = pdf.output('blob');
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-    window.open(pdfUrl, '_blank');
-    // Автоматически освобождаем память через 5 минут
-    setTimeout(() => {
-      URL.revokeObjectURL(pdfUrl);
-    }, 300000);
+    // Скачиваем PDF файл
+    pdf.save(fileName + '.pdf');
     
     // Восстанавливаем кнопку
     if (btnPDF) {
